@@ -2,6 +2,6 @@
 mod tests {
     #[test]
     fn it_works() {
-        assert_eq!(2 + 2, 4);
+        let mut x = vec![0u8; 90];
     }
 }
