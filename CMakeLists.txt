@@ -2,9 +2,10 @@ cmake_minimum_required(VERSION 3.3)
 project(imgui)
 
 set(OpenGL_GL_PREFERENCE GLVND)
-find_package(glfw3)
-find_package(OpenGL)
-find_package(glew CONFIG)
+find_package(OpenGL REQUIRED)
+find_package(GLEW REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_search_module(GLFW REQUIRED glfw3)
 
 set(root ${CMAKE_CURRENT_SOURCE_DIR}/imgui)
 set(phdrs ${root}/imgui.h)
@@ -19,55 +20,19 @@ target_include_directories(imgui PUBLIC
     $<INSTALL_INTERFACE:include>)
 target_compile_definitions(imgui PUBLIC IMGUI_DISABLE_INCLUDE_IMCONFIG_H)
 
-add_executable(my_demo ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp)
-target_link_libraries(my_demo imgui)
+add_executable(my_demo ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp ${root}/examples/imgui_impl_glfw.cpp ${root}/examples/imgui_impl_opengl3.cpp)
+target_compile_definitions(my_demo PUBLIC IMGUI_IMPL_OPENGL_LOADER_GLEW)
+target_include_directories(my_demo PUBLIC ${root}/examples)
+target_link_libraries(my_demo imgui ${GLFW_LIBRARIES} ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES})
 
-set(targets imgui)
-set(headers_to_install ${phdrs})
+# set(targets imgui)
+# set(headers_to_install ${phdrs})
 
-if(glfw3_FOUND AND OPENGL_FOUND AND glew_FOUND)
-    message(STATUS "OpenGL, GLEW and GLFW found, installing imgui::glfw-gl3-glew.")
-
-    # replace #include gl3w.h with glew.h
-    file(STRINGS examples/opengl3_example/imgui_impl_glfw_gl3.cpp cppcontent)
-    set(cppcontent-glew "")
-    foreach(l ${cppcontent})
-        if(l MATCHES "#include.*GL/gl3w.h")
-            set(l "#include \"GL/glew.h\"")
-        endif()
-        string(APPEND cppcontent-glew "${l}\n")
-    endforeach()
-    set(modified_cpp "${CMAKE_CURRENT_BINARY_DIR}/imgui_impl_glfw_gl3-glew.cpp")
-    file(WRITE "${modified_cpp}" "${cppcontent-glew}")
-    
-    add_library(glfw-gl3-glew STATIC
-        "${modified_cpp}"
-        examples/opengl3_example/imgui_impl_glfw_gl3.h
-    )
-    target_include_directories(glfw-gl3-glew PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/examples/opengl3_example>
-        $<INSTALL_INTERFACE:include>)
-    target_link_libraries(glfw-gl3-glew PUBLIC OpenGL::GL GLEW::glew_s glfw imgui)
-    list(APPEND targets glfw-gl3-glew)
-    list(APPEND headers_to_install examples/opengl3_example/imgui_impl_glfw_gl3.h)
-else()
-    if(NOT OPENGL_FOUND)
-        message(STATUS "OpenGL not found, not installing imgui::glfw-gl3-glew.")
-    endif()
-    if(NOT glew_FOUND)
-        message(STATUS "GLEW not found, not installing imgui::glfw-gl3-glew.")
-    endif()
-    if(NOT glfw3_FOUND)
-        message(STATUS "GLFW not found, not installing imgui::glfw-gl3-glew.")
-    endif()
-
-endif()
-
-install(TARGETS ${targets}
-    EXPORT imgui-targets DESTINATION lib)
-install(EXPORT imgui-targets
-    FILE imgui-config.cmake
-    NAMESPACE imgui::
-    DESTINATION lib/cmake/imgui)
-install(FILES ${headers_to_install}
-    DESTINATION include)
+# install(TARGETS ${targets}
+#     EXPORT imgui-targets DESTINATION lib)
+# install(EXPORT imgui-targets
+#     FILE imgui-config.cmake
+#     NAMESPACE imgui::
+#     DESTINATION lib/cmake/imgui)
+# install(FILES ${headers_to_install}
+#     DESTINATION include)
