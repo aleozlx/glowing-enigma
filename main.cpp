@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
+#include <SOIL/SOIL.h>
 
 static void glfw_error_callback(int error, const char* description)
 {
@@ -116,9 +117,25 @@ int main(int, char**)
 
             ImGuiIO& io = ImGui::GetIO();
             ImGui::TextWrapped("Below we are displaying the font texture (which is the only texture we have access to in this demo). Use the 'ImTextureID' type as storage to pass pointers or identifier to your own texture data. Hover the texture for a zoomed view!");
-            ImTextureID my_tex_id = io.Fonts->TexID;
-            float my_tex_w = (float)io.Fonts->TexWidth;
-            float my_tex_h = (float)io.Fonts->TexHeight;
+            
+            int width, height, channels;
+
+            // Loads the image and gets its width, height and the number of channels
+            unsigned char *data = SOIL_load_image("../fixtures/test.png", &width, &height, &channels, SOIL_LOAD_AUTO);
+
+            // Generates a texture from the data you've just loaded
+            GLuint my_tex = SOIL_create_OGL_texture(
+                data, width, height, channels,
+                SOIL_CREATE_NEW_ID,
+                SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB | SOIL_FLAG_COMPRESS_TO_DXT
+            );
+            
+            // ImTextureID my_tex_id = io.Fonts->TexID;
+            // float my_tex_w = (float)io.Fonts->TexWidth;
+            // float my_tex_h = (float)io.Fonts->TexHeight;
+            ImTextureID my_tex_id = (void*)(intptr_t)my_tex;
+            float my_tex_w = (float)width;
+            float my_tex_h = (float)height;
 
             ImGui::Text("%.0fx%.0f", my_tex_w, my_tex_h);
             ImVec2 pos = ImGui::GetCursorScreenPos();

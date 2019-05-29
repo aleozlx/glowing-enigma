@@ -25,7 +25,7 @@ target_compile_definitions(imgui PUBLIC IMGUI_DISABLE_INCLUDE_IMCONFIG_H)
 add_executable(my_demo ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp ${root}/examples/imgui_impl_glfw.cpp ${root}/examples/imgui_impl_opengl3.cpp)
 target_compile_definitions(my_demo PUBLIC IMGUI_IMPL_OPENGL_LOADER_GLEW)
 target_include_directories(my_demo PUBLIC ${root}/examples)
-target_link_libraries(my_demo imgui ${GLFW_LIBRARIES} ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES})
+target_link_libraries(my_demo imgui ${SOIL_LIBRARY} ${GLFW_LIBRARIES} ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES})
 
 # set(targets imgui)
 # set(headers_to_install ${phdrs})
