@@ -1,9 +1,11 @@
 cmake_minimum_required(VERSION 3.3)
 project(imgui)
-
 set(OpenGL_GL_PREFERENCE GLVND)
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/modules)
+
 find_package(OpenGL REQUIRED)
 find_package(GLEW REQUIRED)
+find_package(SOIL REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_search_module(GLFW REQUIRED glfw3)
 
