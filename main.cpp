@@ -1,6 +1,3 @@
-// dear imgui: standalone example application for GLFW + OpenGL 3, using programmable pipeline
-// If you are new to dear imgui, see examples/README.txt and documentation at the top of imgui.cpp.
-// (GLFW is a cross-platform general purpose library for handling windows, inputs, OpenGL/Vulkan graphics context creation, etc.)
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
@@ -130,9 +127,6 @@ int main(int, char**)
                 SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB | SOIL_FLAG_COMPRESS_TO_DXT
             );
             
-            // ImTextureID my_tex_id = io.Fonts->TexID;
-            // float my_tex_w = (float)io.Fonts->TexWidth;
-            // float my_tex_h = (float)io.Fonts->TexHeight;
             ImTextureID my_tex_id = (void*)(intptr_t)my_tex;
             float my_tex_w = (float)width;
             float my_tex_h = (float)height;
