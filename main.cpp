@@ -30,7 +30,7 @@ int main(int, char**)
     if (window == NULL)
         return 1;
     glfwMakeContextCurrent(window);
-    glfwSwapInterval(1); // Enable vsync
+    glfwSwapInterval(1); // ? "Enable vsync" - what is this?
 
 
     bool err = glewInit() != GLEW_OK;
