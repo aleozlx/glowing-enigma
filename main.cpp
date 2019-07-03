@@ -83,15 +83,24 @@ int main(int, char**)
     int capture = 0;
     cv::VideoCapture cap(capture);
     if(!cap.open(capture)){
-        std::cerr << "Cannot initialize video:"<<capture<<"\n";
+        std::cerr << "Cannot initialize video:" << capture << std::endl;
     }
 
+    cv::Mat frame;
+    cv::Mat frame_rgb;
+    cap >> frame;
+    cv::Size frame_size = frame.size();
+    int width=frame_size.width, height=frame_size.height, channels=3;
+    GLuint my_tex = SOIL_create_OGL_texture(
+        frame.data, width, height, channels,
+        SOIL_CREATE_NEW_ID,
+        SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB | SOIL_FLAG_COMPRESS_TO_DXT
+    );
+
     // Main loop
-    while (!glfwWindowShouldClose(window))
-    {
+    while (!glfwWindowShouldClose(window)){
         glfwPollEvents();
 
-        // Start the Dear ImGui frame
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
@@ -101,18 +110,11 @@ int main(int, char**)
 
             ImGui::Begin("Hello, world!");
 
-            cv::Mat frame;
             cap >> frame;
-
-            cv::Size s = frame.size();
-            int width=s.width, height=s.height, channels=3;
-            cv::Mat frame_rgb;
             cv::cvtColor(frame, frame_rgb, cv::COLOR_BGR2RGB);
-
-            // Generates a texture from the data you've just loaded
-            GLuint my_tex = SOIL_create_OGL_texture(
+            my_tex = SOIL_create_OGL_texture(
                 frame_rgb.data, width, height, channels,
-                SOIL_CREATE_NEW_ID,
+                my_tex,
                 SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB | SOIL_FLAG_COMPRESS_TO_DXT
             );
             
@@ -141,16 +143,6 @@ int main(int, char**)
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
             ImGui::End();
         }
-
-        // // 3. Show another simple window.
-        // if (show_another_window)
-        // {
-        //     ImGui::Begin("Another Window", &show_another_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-        //     ImGui::Text("Hello from another window!");
-        //     if (ImGui::Button("Close Me"))
-        //         show_another_window = false;
-        //     ImGui::End();
-        // }
 
         // Rendering
         ImGui::Render();
