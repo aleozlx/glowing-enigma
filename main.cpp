@@ -94,7 +94,8 @@ int main(int, char**)
 
             cap >> frame;
             cv::cvtColor(frame, frame_rgb, cv::COLOR_BGR2RGB);
-            cv::cvtColor(frame, frame_hsv, cv::COLOR_BGR2HSV);
+            cv::medianBlur(frame, frame_hsv, 5);
+            cv::cvtColor(frame_hsv, frame_hsv, cv::COLOR_BGR2HSV);
             cv::Ptr<cv::ximgproc::SuperpixelSLIC> slic = cv::ximgproc::createSuperpixelSLIC(
                 frame_hsv, cv::ximgproc::SLIC+1, (int)f, float(30));
             slic->iterate(3);
