@@ -6,10 +6,10 @@
 #include <GLFW/glfw3.h>
 #include <SOIL/SOIL.h>
 #include <opencv2/imgproc.hpp>
-#include <opencv2/highgui.hpp>
+#include <opencv2/videoio.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/core/utility.hpp>
-#include <opencv2/ximgproc.hpp>
+#include "superpixel_pipeline.hpp"
 
 static void glfw_error_callback(int error, const char* description) {
     std::cerr << "Glfw Error " << error << description << std::endl;
@@ -100,8 +100,6 @@ struct Camera {
     }
 };
 
-
-
 int main(int, char**) {
     App app = App::Initialize();
     if (!app.ok) return 1;
@@ -144,12 +142,11 @@ int main(int, char**) {
             cv::cvtColor(frame, frame_rgb, cv::COLOR_BGR2RGB);
             cv::medianBlur(frame, frame_hsv, 5);
             cv::cvtColor(frame_hsv, frame_hsv, cv::COLOR_BGR2HSV);
-            cv::Ptr<cv::ximgproc::SuperpixelSLIC> slic = cv::ximgproc::createSuperpixelSLIC(
-                frame_hsv, cv::ximgproc::SLIC+1, (int)superpixel_size, float(30));
-            slic->iterate(3);
-            slic->enforceLabelConnectivity(10);
-            slic->getLabelContourMask(superpixel_contour, true);
-            slic->getLabels(superpixel_labels);
+            OpenCVSLIC _superpixel(frame_hsv, superpixel_size, 30.0f, 3, 10.0f);
+            ISuperpixel* superpixel = _superpixel.Compute();
+
+            superpixel->GetContour(superpixel_contour);
+            superpixel->GetLabels(superpixel_labels);
             superpixel_id = superpixel_labels.at<unsigned int>(pointer_y, pointer_x);
             superpixel_selected = superpixel_labels == superpixel_id;
             cv::meanStdDev(frame_rgb, sel_mean, sel_std, superpixel_selected);
@@ -166,7 +163,7 @@ int main(int, char**) {
             float my_tex_w = (float)width;
             float my_tex_h = (float)height;
 
-            ImGui::Text("(%.0f, %.0f) => (%d,)", my_tex_w, my_tex_h, slic->getNumberOfSuperpixels());
+            ImGui::Text("(%.0f, %.0f) => (%d,)", my_tex_w, my_tex_h, superpixel->GetNumSuperpixels());
             ImVec2 pos = ImGui::GetCursorScreenPos();
             ImGui::Image(my_tex_id, ImVec2(my_tex_w, my_tex_h), ImVec2(0,0), ImVec2(1,1), ImVec4(1.0f,1.0f,1.0f,1.0f), ImVec4(1.0f,1.0f,1.0f,0.5f));
             if (ImGui::IsItemHovered())

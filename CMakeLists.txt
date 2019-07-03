@@ -32,7 +32,7 @@ target_compile_definitions(imgui PUBLIC IMGUI_DISABLE_INCLUDE_IMCONFIG_H)
 # target_link_libraries(my_demo imgui ${SOIL_LIBRARY} ${GLFW_LIBRARIES} ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES})
 
 include_directories(SYSTEM "/usr/include/opencv4")
-add_executable(camera_demo ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp ${root}/examples/imgui_impl_glfw.cpp ${root}/examples/imgui_impl_opengl3.cpp)
+add_executable(camera_demo ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp ${CMAKE_CURRENT_SOURCE_DIR}/superpixel_pipeline.cpp ${root}/examples/imgui_impl_glfw.cpp ${root}/examples/imgui_impl_opengl3.cpp)
 target_compile_definitions(camera_demo PUBLIC IMGUI_IMPL_OPENGL_LOADER_GLEW)
 target_include_directories(camera_demo PUBLIC ${root}/examples)
 target_link_libraries(camera_demo imgui ${SOIL_LIBRARY} ${GLFW_LIBRARIES} ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES}
