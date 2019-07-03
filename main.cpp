@@ -65,8 +65,12 @@ int main(int, char**)
 
     int capture = 0;
     cv::VideoCapture cap(capture);
-    if(!cap.open(capture)){
+    if (!cap.open(capture)) {
         std::cerr << "Cannot initialize video:" << capture << std::endl;
+    }
+    else {
+        cap.set(cv::CAP_PROP_FRAME_WIDTH, 432);
+        cap.set(cv::CAP_PROP_FRAME_HEIGHT, 240);
     }
 
     cv::Mat frame, frame_rgb, frame_hsv, superpixel_mask;
@@ -87,7 +91,7 @@ int main(int, char**)
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
         {
-            static float f = 50.0f;
+            static float superpixel_size = 32.0f;
             static int counter = 0;
 
             ImGui::Begin("Superpixel Analyzer");
@@ -97,7 +101,7 @@ int main(int, char**)
             cv::medianBlur(frame, frame_hsv, 5);
             cv::cvtColor(frame_hsv, frame_hsv, cv::COLOR_BGR2HSV);
             cv::Ptr<cv::ximgproc::SuperpixelSLIC> slic = cv::ximgproc::createSuperpixelSLIC(
-                frame_hsv, cv::ximgproc::SLIC+1, (int)f, float(30));
+                frame_hsv, cv::ximgproc::SLIC+1, (int)superpixel_size, float(30));
             slic->iterate(3);
             slic->enforceLabelConnectivity(10);
             slic->getLabelContourMask(superpixel_mask, true);
@@ -130,7 +134,7 @@ int main(int, char**)
                 ImGui::Image(my_tex_id, ImVec2(region_sz * zoom, region_sz * zoom), uv0, uv1, ImVec4(1.0f, 1.0f, 1.0f, 1.0f), ImVec4(1.0f, 1.0f, 1.0f, 0.5f));
                 ImGui::EndTooltip();
             }
-            ImGui::SliderFloat("Size", &f, 15.0f, 80.0f);
+            ImGui::SliderFloat("Size", &superpixel_size, 15.0f, 80.0f);
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
             ImGui::End();
         }
