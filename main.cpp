@@ -30,7 +30,7 @@ int main(int, char**)
     //glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // 3.0+ only
 
     // Create window with graphics context
-    GLFWwindow* window = glfwCreateWindow(1280, 720, "Dear ImGui GLFW+OpenGL3 example", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(1280, 720, "Superpixel Analyzer", NULL, NULL);
     if (window == NULL)
         return 1;
     glfwMakeContextCurrent(window);
@@ -113,7 +113,7 @@ int main(int, char**)
             float my_tex_w = (float)width;
             float my_tex_h = (float)height;
 
-            ImGui::Text("%.0fx%.0f", my_tex_w, my_tex_h);
+            ImGui::Text("(%.0f, %.0f) => (%d,)", my_tex_w, my_tex_h, slic->getNumberOfSuperpixels());
             ImVec2 pos = ImGui::GetCursorScreenPos();
             ImGui::Image(my_tex_id, ImVec2(my_tex_w, my_tex_h), ImVec2(0,0), ImVec2(1,1), ImVec4(1.0f,1.0f,1.0f,1.0f), ImVec4(1.0f,1.0f,1.0f,0.5f));
             if (ImGui::IsItemHovered())
