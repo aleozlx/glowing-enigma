@@ -73,7 +73,9 @@ int main(int, char**)
         cap.set(cv::CAP_PROP_FRAME_HEIGHT, 240);
     }
 
-    cv::Mat frame, frame_rgb, frame_hsv, superpixel_mask;
+    cv::Mat frame, frame_rgb, frame_hsv;
+    cv::Mat superpixel_contour, superpixel_labels, superpixel_selected;
+    cv::Scalar sel_mean, sel_std;
     cap >> frame;
     cv::Size frame_size = frame.size();
     int width=frame_size.width, height=frame_size.height, channels=3;
@@ -92,7 +94,8 @@ int main(int, char**)
         ImGui::NewFrame();
         {
             static float superpixel_size = 32.0f;
-            static int counter = 0;
+            static int pointer_x = 0, pointer_y = 0;
+            static unsigned int superpixel_id = 0;
 
             ImGui::Begin("Superpixel Analyzer");
 
@@ -104,9 +107,14 @@ int main(int, char**)
                 frame_hsv, cv::ximgproc::SLIC+1, (int)superpixel_size, float(30));
             slic->iterate(3);
             slic->enforceLabelConnectivity(10);
-            slic->getLabelContourMask(superpixel_mask, true);
-            frame_rgb.setTo(cv::Scalar(200, 5, 240), superpixel_mask);
-
+            slic->getLabelContourMask(superpixel_contour, true);
+            slic->getLabels(superpixel_labels);
+            superpixel_id = superpixel_labels.at<unsigned int>(pointer_y, pointer_x);
+            superpixel_selected = superpixel_labels == superpixel_id;
+            cv::meanStdDev(frame_rgb, sel_mean, sel_std, superpixel_selected);
+            frame_rgb.setTo(cv::Scalar(200, 5, 240), superpixel_selected);
+            frame_rgb.setTo(cv::Scalar(200, 5, 240), superpixel_contour);
+            
             my_tex = SOIL_create_OGL_texture(
                 frame_rgb.data, width, height, channels,
                 my_tex,
@@ -127,8 +135,13 @@ int main(int, char**)
                 float region_x = io.MousePos.x - pos.x - region_sz * 0.5f; if (region_x < 0.0f) region_x = 0.0f; else if (region_x > my_tex_w - region_sz) region_x = my_tex_w - region_sz;
                 float region_y = io.MousePos.y - pos.y - region_sz * 0.5f; if (region_y < 0.0f) region_y = 0.0f; else if (region_y > my_tex_h - region_sz) region_y = my_tex_h - region_sz;
                 float zoom = 4.0f;
-                ImGui::Text("Min: (%.2f, %.2f)", region_x, region_y);
-                ImGui::Text("Max: (%.2f, %.2f)", region_x + region_sz, region_y + region_sz);
+                pointer_x = static_cast<int>(io.MousePos.x - pos.x);
+                pointer_y = static_cast<int>(io.MousePos.y - pos.y);
+                ImGui::Text("Ptr: (%d,%d) Id: %d", pointer_x, pointer_y, superpixel_id);
+                // ImGui::Text("Min: (%.0f,%.0f)", region_x, region_y);
+                // ImGui::Text("Max: (%.0f,%.0f)", region_x + region_sz, region_y + region_sz);
+                ImGui::Text("Mean: (%.1f,%.1f,%.1f)", sel_mean[0], sel_mean[1], sel_mean[2]);
+                ImGui::Text("Std: (%.1f,%.1f,%.1f)", sel_std[0], sel_std[1], sel_std[2]);
                 ImVec2 uv0 = ImVec2((region_x) / my_tex_w, (region_y) / my_tex_h);
                 ImVec2 uv1 = ImVec2((region_x + region_sz) / my_tex_w, (region_y + region_sz) / my_tex_h);
                 ImGui::Image(my_tex_id, ImVec2(region_sz * zoom, region_sz * zoom), uv0, uv1, ImVec4(1.0f, 1.0f, 1.0f, 1.0f), ImVec4(1.0f, 1.0f, 1.0f, 0.5f));
