@@ -11,72 +11,113 @@
 #include <opencv2/core/utility.hpp>
 #include <opencv2/ximgproc.hpp>
 
-static void glfw_error_callback(int error, const char* description)
-{
-    fprintf(stderr, "Glfw Error %d: %s\n", error, description);
+static void glfw_error_callback(int error, const char* description) {
+    std::cerr << "Glfw Error " << error << description << std::endl;
 }
 
-int main(int, char**)
-{
-    glfwSetErrorCallback(glfw_error_callback);
-    if (!glfwInit())
-        return 1;
+/// ImGui App boiler plates
+struct App {
+    int ok;
+    GLFWwindow* window;
+    const char* glsl_version;
 
-    // GL 3.0 + GLSL 130
-    const char* glsl_version = "#version 130";
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-    //glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
-    //glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // 3.0+ only
-
-    // Create window with graphics context
-    GLFWwindow* window = glfwCreateWindow(1280, 720, "Superpixel Analyzer", NULL, NULL);
-    if (window == NULL)
-        return 1;
-    glfwMakeContextCurrent(window);
-    glfwSwapInterval(1); // ? "Enable vsync" - what is this?
-
-
-    bool err = glewInit() != GLEW_OK;
-    if (err)
-    {
-        fprintf(stderr, "Failed to initialize OpenGL loader!\n");
-        return 1;
+    inline static App Ok(GLFWwindow* w, const char* glsl_version) {
+        return {.ok=1, .window=w, .glsl_version=glsl_version};
     }
 
-    // Setup Dear ImGui context
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
+    inline static App Err() {
+        return {.ok=0, .window=nullptr, .glsl_version=nullptr};
+    }
+
+    void Shutdown() {
+        ImGui_ImplOpenGL3_Shutdown();
+        ImGui_ImplGlfw_Shutdown();
+        ImGui::DestroyContext();
+        glfwDestroyWindow(this->window);
+        glfwTerminate();
+    }
+
+    static App Initialize() {
+        glfwSetErrorCallback(glfw_error_callback);
+        if (!glfwInit()) return App::Err();
+
+        // GL 3.0 + GLSL 130
+        const char* glsl_version = "#version 130";
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+        //glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
+        //glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // 3.0+ only
+
+        // Create window with graphics context
+        GLFWwindow* window = glfwCreateWindow(1280, 720, "Superpixel Analyzer", NULL, NULL);
+        if (window == NULL) return App::Err();
+        glfwMakeContextCurrent(window);
+        glfwSwapInterval(1); // ? "Enable vsync" - what is this?
+
+        bool err = glewInit() != GLEW_OK;
+        if (err) {
+            std::cerr << "Failed to initialize OpenGL loader!" << std::endl;
+            return App::Err();
+        }
+
+        // Setup Dear ImGui context
+        IMGUI_CHECKVERSION();
+        ImGui::CreateContext();
+
+        // Setup Dear ImGui style
+        ImGui::StyleColorsDark();
+        //ImGui::StyleColorsClassic();
+
+        // Setup Platform/Renderer bindings
+        ImGui_ImplGlfw_InitForOpenGL(window, true);
+        ImGui_ImplOpenGL3_Init(glsl_version);
+
+        return App::Ok(window, glsl_version);
+    }
+};
+
+/// OpenCV Video I/O
+struct Camera {
+    int capture_id;
+    cv::VideoCapture capture;
+    unsigned int width, height;
+
+    Camera(unsigned int idx, unsigned int width, unsigned int height): capture_id(idx), capture(idx) {
+        this->width = width;
+        this->height = height;
+    }
+
+    int open() {
+        if (!capture.open(capture_id)) {
+            std::cerr << "Cannot initialize video:" << capture_id << std::endl;
+            return 0;
+        }
+        else {
+            capture.set(cv::CAP_PROP_FRAME_WIDTH, width);
+            capture.set(cv::CAP_PROP_FRAME_HEIGHT, height);
+            return 1;
+        }
+    }
+};
+
+
+
+int main(int, char**) {
+    App app = App::Initialize();
+    if (!app.ok) return 1;
+    GLFWwindow* window = app.window;
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
     //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;   // Enable Gamepad Controls
-
-    // Setup Dear ImGui style
-    ImGui::StyleColorsDark();
-    //ImGui::StyleColorsClassic();
-
-    // Setup Platform/Renderer bindings
-    ImGui_ImplGlfw_InitForOpenGL(window, true);
-    ImGui_ImplOpenGL3_Init(glsl_version);
-
-    bool show_demo_window = true;
-    bool show_another_window = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
-    int capture = 0;
-    cv::VideoCapture cap(capture);
-    if (!cap.open(capture)) {
-        std::cerr << "Cannot initialize video:" << capture << std::endl;
-    }
-    else {
-        cap.set(cv::CAP_PROP_FRAME_WIDTH, 432);
-        cap.set(cv::CAP_PROP_FRAME_HEIGHT, 240);
-    }
+    Camera cam(0, 432, 240);
+    cam.open();
 
     cv::Mat frame, frame_rgb, frame_hsv;
     cv::Mat superpixel_contour, superpixel_labels, superpixel_selected;
     cv::Scalar sel_mean, sel_std;
-    cap >> frame;
+    cam.capture >> frame;
     cv::Size frame_size = frame.size();
     int width=frame_size.width, height=frame_size.height, channels=3;
     GLuint my_tex = SOIL_create_OGL_texture(
@@ -99,7 +140,7 @@ int main(int, char**)
 
             ImGui::Begin("Superpixel Analyzer");
 
-            cap >> frame;
+            cam.capture >> frame;
             cv::cvtColor(frame, frame_rgb, cv::COLOR_BGR2RGB);
             cv::medianBlur(frame, frame_hsv, 5);
             cv::cvtColor(frame_hsv, frame_hsv, cv::COLOR_BGR2HSV);
@@ -166,13 +207,6 @@ int main(int, char**)
         glfwSwapBuffers(window);
     }
 
-    // Cleanup
-    ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplGlfw_Shutdown();
-    ImGui::DestroyContext();
-
-    glfwDestroyWindow(window);
-    glfwTerminate();
-
+    app.Shutdown();
     return 0;
 }
