@@ -86,8 +86,7 @@ int main(int, char**)
         std::cerr << "Cannot initialize video:" << capture << std::endl;
     }
 
-    cv::Mat frame;
-    cv::Mat frame_rgb;
+    cv::Mat frame, frame_rgb, frame_hsv, superpixel_mask;
     cap >> frame;
     cv::Size frame_size = frame.size();
     int width=frame_size.width, height=frame_size.height, channels=3;
@@ -112,6 +111,14 @@ int main(int, char**)
 
             cap >> frame;
             cv::cvtColor(frame, frame_rgb, cv::COLOR_BGR2RGB);
+            cv::cvtColor(frame, frame_hsv, cv::COLOR_BGR2HSV);
+            cv::Ptr<cv::ximgproc::SuperpixelSLIC> slic = cv::ximgproc::createSuperpixelSLIC(
+                frame_hsv, cv::ximgproc::SLIC+1, 50, float(30));
+            slic->iterate(3);
+            slic->enforceLabelConnectivity(50);
+            slic->getLabelContourMask(superpixel_mask, true);
+            frame_rgb.setTo(cv::Scalar(200, 5, 240), superpixel_mask);
+
             my_tex = SOIL_create_OGL_texture(
                 frame_rgb.data, width, height, channels,
                 my_tex,
