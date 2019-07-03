@@ -104,18 +104,18 @@ int main(int, char**)
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
         {
-            static float f = 0.0f;
+            static float f = 50.0f;
             static int counter = 0;
 
-            ImGui::Begin("Hello, world!");
+            ImGui::Begin("Superpixel Analyzer");
 
             cap >> frame;
             cv::cvtColor(frame, frame_rgb, cv::COLOR_BGR2RGB);
             cv::cvtColor(frame, frame_hsv, cv::COLOR_BGR2HSV);
             cv::Ptr<cv::ximgproc::SuperpixelSLIC> slic = cv::ximgproc::createSuperpixelSLIC(
-                frame_hsv, cv::ximgproc::SLIC+1, 50, float(30));
+                frame_hsv, cv::ximgproc::SLIC+1, (int)f, float(30));
             slic->iterate(3);
-            slic->enforceLabelConnectivity(50);
+            slic->enforceLabelConnectivity(10);
             slic->getLabelContourMask(superpixel_mask, true);
             frame_rgb.setTo(cv::Scalar(200, 5, 240), superpixel_mask);
 
@@ -146,7 +146,7 @@ int main(int, char**)
                 ImGui::Image(my_tex_id, ImVec2(region_sz * zoom, region_sz * zoom), uv0, uv1, ImVec4(1.0f, 1.0f, 1.0f, 1.0f), ImVec4(1.0f, 1.0f, 1.0f, 0.5f));
                 ImGui::EndTooltip();
             }
-
+            ImGui::SliderFloat("Size", &f, 15.0f, 80.0f);
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
             ImGui::End();
         }
