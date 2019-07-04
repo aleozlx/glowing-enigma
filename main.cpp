@@ -114,12 +114,46 @@ struct Camera {
     }
 };
 
+/// Management of image data in texture
+class TexImage {
+    private:
+    bool _firstCall;
+    GLuint texid;
+
+    public:
+    unsigned int width, height, channels;
+
+    TexImage(unsigned int width, unsigned int height, unsigned int channels) {
+        this->_firstCall = true;
+        this->texid = 0;
+        this->width = width;
+        this->height = height;
+        this->channels = channels;
+    }
+
+    void Load(const unsigned char *data) {
+        GLuint ret = SOIL_create_OGL_texture(
+            data, width, height, channels,
+            this->_firstCall?SOIL_CREATE_NEW_ID:texid,
+            SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB | SOIL_FLAG_COMPRESS_TO_DXT
+        );
+        if (this->_firstCall) {
+            texid = ret;
+            this->_firstCall = false;
+        }
+    }
+
+    inline ImTextureID id() {
+        return reinterpret_cast<void*>(texid);
+    }
+};
+
 int main(int, char**) {
     App app = App::Initialize();
     if (!app.ok) return 1;
     GLFWwindow* window = app.window;
     ImGuiIO& io = ImGui::GetIO(); (void)io;
-    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
     //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;   // Enable Gamepad Controls
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
@@ -132,11 +166,7 @@ int main(int, char**) {
     cam.capture >> frame;
     cv::Size frame_size = frame.size();
     int width=frame_size.width, height=frame_size.height, channels=3;
-    GLuint my_tex = SOIL_create_OGL_texture(
-        frame.data, width, height, channels,
-        SOIL_CREATE_NEW_ID,
-        SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB | SOIL_FLAG_COMPRESS_TO_DXT
-    );
+    TexImage my_tex(width, height, channels);
 
     // Main loop
     while (!glfwWindowShouldClose(window)){
@@ -167,19 +197,13 @@ int main(int, char**) {
             frame_rgb.setTo(cv::Scalar(200, 5, 240), superpixel_selected);
             frame_rgb.setTo(cv::Scalar(200, 5, 240), superpixel_contour);
             
-            my_tex = SOIL_create_OGL_texture(
-                frame_rgb.data, width, height, channels,
-                my_tex,
-                SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB | SOIL_FLAG_COMPRESS_TO_DXT
-            );
-            
-            ImTextureID my_tex_id = (void*)(intptr_t)my_tex;
+            my_tex.Load(frame_rgb.data);
             float my_tex_w = (float)width;
             float my_tex_h = (float)height;
 
             ImGui::Text("(%.0f, %.0f) => (%d,)", my_tex_w, my_tex_h, superpixel->GetNumSuperpixels());
             ImVec2 pos = ImGui::GetCursorScreenPos();
-            ImGui::Image(my_tex_id, ImVec2(my_tex_w, my_tex_h), ImVec2(0,0), ImVec2(1,1), ImVec4(1.0f,1.0f,1.0f,1.0f), ImVec4(1.0f,1.0f,1.0f,0.5f));
+            ImGui::Image(my_tex.id(), ImVec2(my_tex_w, my_tex_h), ImVec2(0,0), ImVec2(1,1), ImVec4(1.0f,1.0f,1.0f,1.0f), ImVec4(1.0f,1.0f,1.0f,0.5f));
             if (ImGui::IsItemHovered()) {
                 ImGui::BeginTooltip();
                 float region_sz = 32.0f;
@@ -195,7 +219,7 @@ int main(int, char**) {
                 ImGui::Text("Std: (%.1f,%.1f,%.1f)", sel_std[0], sel_std[1], sel_std[2]);
                 ImVec2 uv0 = ImVec2((region_x) / my_tex_w, (region_y) / my_tex_h);
                 ImVec2 uv1 = ImVec2((region_x + region_sz) / my_tex_w, (region_y + region_sz) / my_tex_h);
-                ImGui::Image(my_tex_id, ImVec2(region_sz * zoom, region_sz * zoom), uv0, uv1, ImVec4(1.0f, 1.0f, 1.0f, 1.0f), ImVec4(1.0f, 1.0f, 1.0f, 0.5f));
+                ImGui::Image(my_tex.id(), ImVec2(region_sz * zoom, region_sz * zoom), uv0, uv1, ImVec4(1.0f, 1.0f, 1.0f, 1.0f), ImVec4(1.0f, 1.0f, 1.0f, 0.5f));
                 ImGui::EndTooltip();
             }
             ImGui::SliderFloat("Size", &superpixel_size, 15.0f, 80.0f);
