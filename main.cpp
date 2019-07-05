@@ -2,6 +2,7 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include <iostream>
+#include <string>
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <SOIL/SOIL.h>
@@ -148,6 +149,47 @@ class TexImage {
     }
 };
 
+
+std::string cv_type2str(int type) {
+    /*
+    std::string ty = cv_type2str(frame_rgb.type());
+    ImGui::Text("type %s", ty.c_str());
+    */
+    std::string r;
+    unsigned char depth = type & CV_MAT_DEPTH_MASK;
+    unsigned char chans = 1 + (type >> CV_CN_SHIFT);
+    switch (depth) {
+        case CV_8U:  r = "8U"; break;
+        case CV_8S:  r = "8S"; break;
+        case CV_16U: r = "16U"; break;
+        case CV_16S: r = "16S"; break;
+        case CV_32S: r = "32S"; break;
+        case CV_32F: r = "32F"; break;
+        case CV_64F: r = "64F"; break;
+        default:     r = "User"; break;
+    }
+    r += "C";
+    r += (chans+'0');
+    return r;
+}
+
+void spotlight(cv::OutputArray _frame, cv::InputArray _sel, float alpha) {
+    cv::Mat frame = _frame.getMat(), selection = _sel.getMat();
+    CV_Assert(frame.type() == CV_8UC3 && selection.type() == CV_8UC1);
+    const int channels = 3;
+    for (int i=0; i<frame.rows; ++i) {
+        unsigned char* fptr = frame.ptr(i);
+        const unsigned char* sptr = selection.ptr(i);
+        for (int j=0; j<frame.cols; ++j) {
+            if (sptr[j]==0) {
+                fptr[j*channels] = static_cast<unsigned char>(fptr[j*channels] * alpha);
+                fptr[j*channels+1] = static_cast<unsigned char>(fptr[j*channels+1] * alpha);
+                fptr[j*channels+2] = static_cast<unsigned char>(fptr[j*channels+2] * alpha);
+            }
+        }
+    }
+}
+
 int main(int, char**) {
     App app = App::Initialize();
     if (!app.ok) return 1;
@@ -179,6 +221,7 @@ int main(int, char**) {
             static float superpixel_size = 32.0f;
             static int pointer_x = 0, pointer_y = 0;
             static unsigned int superpixel_id = 0;
+            static bool use_spotlight = true;
 
             ImGui::Begin("Superpixel Analyzer");
 
@@ -194,7 +237,7 @@ int main(int, char**) {
             superpixel_id = superpixel_labels.at<unsigned int>(pointer_y, pointer_x);
             superpixel_selected = superpixel_labels == superpixel_id;
             cv::meanStdDev(frame_rgb, sel_mean, sel_std, superpixel_selected);
-            frame_rgb.setTo(cv::Scalar(200, 5, 240), superpixel_selected);
+            if (use_spotlight) spotlight(frame_rgb, superpixel_selected, 0.5);
             frame_rgb.setTo(cv::Scalar(200, 5, 240), superpixel_contour);
             
             my_tex.Load(frame_rgb.data);
@@ -224,6 +267,7 @@ int main(int, char**) {
             }
             ImGui::SliderFloat("Size", &superpixel_size, 15.0f, 80.0f);
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+            ImGui::Checkbox("Spotlight", &use_spotlight);
             ImGui::End();
         }
         app.Render(clear_color);

@@ -6,17 +6,17 @@
 class ISuperpixel {
     public:
     virtual ISuperpixel* Compute() = 0;
-    virtual void GetContour(cv::Mat &output) = 0;
-    virtual void GetLabels(cv::Mat &output) = 0;
+    virtual void GetContour(cv::OutputArray output) = 0;
+    virtual void GetLabels(cv::OutputArray output) = 0;
     virtual unsigned int GetNumSuperpixels() = 0;
 };
 
 class OpenCVSLIC: public ISuperpixel {
     public:
-    OpenCVSLIC(cv::Mat frame, float superpixel_size, float ruler, unsigned int num_iter, float min_size);
+    OpenCVSLIC(cv::InputArray frame, float superpixel_size, float ruler, unsigned int num_iter, float min_size);
     ISuperpixel* Compute() override;
-    void GetContour(cv::Mat &output) override;
-    void GetLabels(cv::Mat &output) override;
+    void GetContour(cv::OutputArray output) override;
+    void GetLabels(cv::OutputArray output) override;
     unsigned int GetNumSuperpixels() override;
 
     unsigned int num_iter;
