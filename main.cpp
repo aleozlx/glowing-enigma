@@ -123,12 +123,15 @@ class TexImage {
 
     public:
     unsigned int width, height, channels;
+    float f32width, f32height;
 
     TexImage(unsigned int width, unsigned int height, unsigned int channels) {
         this->_firstCall = true;
         this->texid = 0;
         this->width = width;
+        this->f32width = (float) width;
         this->height = height;
+        this->f32height = (float) height;
         this->channels = channels;
     }
 
@@ -146,6 +149,14 @@ class TexImage {
 
     inline ImTextureID id() {
         return reinterpret_cast<void*>(texid);
+    }
+
+    ImVec2 uv(float px=0.0f, float py=0.0f) {
+        return ImVec2(px / f32width, py / f32height);
+    }
+
+    ImVec2 size() {
+        return ImVec2(f32width, f32height);
     }
 };
 
@@ -196,7 +207,6 @@ int main(int, char**) {
     GLFWwindow* window = app.window;
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
-    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;   // Enable Gamepad Controls
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
     Camera cam(0, 432, 240);
@@ -222,6 +232,7 @@ int main(int, char**) {
             static int pointer_x = 0, pointer_y = 0;
             static unsigned int superpixel_id = 0;
             static bool use_spotlight = true;
+            static bool use_magnifier = false;
 
             ImGui::Begin("Superpixel Analyzer");
 
@@ -241,33 +252,32 @@ int main(int, char**) {
             frame_rgb.setTo(cv::Scalar(200, 5, 240), superpixel_contour);
             
             my_tex.Load(frame_rgb.data);
-            float my_tex_w = (float)width;
-            float my_tex_h = (float)height;
-
-            ImGui::Text("(%.0f, %.0f) => (%d,)", my_tex_w, my_tex_h, superpixel->GetNumSuperpixels());
+            ImGui::Text("(%d, %d) => (%d,)", my_tex.width, my_tex.height, superpixel->GetNumSuperpixels());
             ImVec2 pos = ImGui::GetCursorScreenPos();
-            ImGui::Image(my_tex.id(), ImVec2(my_tex_w, my_tex_h), ImVec2(0,0), ImVec2(1,1), ImVec4(1.0f,1.0f,1.0f,1.0f), ImVec4(1.0f,1.0f,1.0f,0.5f));
+            ImGui::Image(my_tex.id(), my_tex.size(), ImVec2(0,0), ImVec2(1,1), ImVec4(1.0f,1.0f,1.0f,1.0f), ImVec4(1.0f,1.0f,1.0f,0.5f));
             if (ImGui::IsItemHovered()) {
-                ImGui::BeginTooltip();
-                float region_sz = 32.0f;
-                float region_x = io.MousePos.x - pos.x - region_sz * 0.5f; if (region_x < 0.0f) region_x = 0.0f; else if (region_x > my_tex_w - region_sz) region_x = my_tex_w - region_sz;
-                float region_y = io.MousePos.y - pos.y - region_sz * 0.5f; if (region_y < 0.0f) region_y = 0.0f; else if (region_y > my_tex_h - region_sz) region_y = my_tex_h - region_sz;
-                float zoom = 4.0f;
                 pointer_x = static_cast<int>(io.MousePos.x - pos.x);
                 pointer_y = static_cast<int>(io.MousePos.y - pos.y);
-                ImGui::Text("Ptr: (%d,%d) Id: %d", pointer_x, pointer_y, superpixel_id);
-                // ImGui::Text("Min: (%.0f,%.0f)", region_x, region_y);
-                // ImGui::Text("Max: (%.0f,%.0f)", region_x + region_sz, region_y + region_sz);
-                ImGui::Text("Mean: (%.1f,%.1f,%.1f)", sel_mean[0], sel_mean[1], sel_mean[2]);
-                ImGui::Text("Std: (%.1f,%.1f,%.1f)", sel_std[0], sel_std[1], sel_std[2]);
-                ImVec2 uv0 = ImVec2((region_x) / my_tex_w, (region_y) / my_tex_h);
-                ImVec2 uv1 = ImVec2((region_x + region_sz) / my_tex_w, (region_y + region_sz) / my_tex_h);
-                ImGui::Image(my_tex.id(), ImVec2(region_sz * zoom, region_sz * zoom), uv0, uv1, ImVec4(1.0f, 1.0f, 1.0f, 1.0f), ImVec4(1.0f, 1.0f, 1.0f, 0.5f));
-                ImGui::EndTooltip();
+                if (use_magnifier) {
+                    ImGui::BeginTooltip();
+                    float region_sz = 32.0f;
+                    float region_x = io.MousePos.x - pos.x - region_sz * 0.5f; if (region_x < 0.0f) region_x = 0.0f; else if (region_x > my_tex.f32width - region_sz) region_x = my_tex.f32width - region_sz;
+                    float region_y = io.MousePos.y - pos.y - region_sz * 0.5f; if (region_y < 0.0f) region_y = 0.0f; else if (region_y > my_tex.f32height - region_sz) region_y = my_tex.f32height - region_sz;
+                    float zoom = 4.0f;
+                    ImGui::Text("Ptr: (%d,%d) Id: %d", pointer_x, pointer_y, superpixel_id);
+                    ImGui::Text("Mean: (%.1f,%.1f,%.1f)", sel_mean[0], sel_mean[1], sel_mean[2]);
+                    ImGui::Text("Std: (%.1f,%.1f,%.1f)", sel_std[0], sel_std[1], sel_std[2]);
+                    ImGui::Image(
+                        my_tex.id(), ImVec2(region_sz * zoom, region_sz * zoom),
+                        my_tex.uv(region_x, region_y), my_tex.uv(region_x + region_sz, region_y + region_sz),
+                        ImVec4(1.0f, 1.0f, 1.0f, 1.0f), ImVec4(1.0f, 1.0f, 1.0f, 0.5f));
+                    ImGui::EndTooltip();
+                }
             }
             ImGui::SliderFloat("Size", &superpixel_size, 15.0f, 80.0f);
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-            ImGui::Checkbox("Spotlight", &use_spotlight);
+            ImGui::Checkbox("Spotlight", &use_spotlight); ImGui::SameLine(150);
+            ImGui::Checkbox("Magnifier", &use_magnifier);
             ImGui::End();
         }
         app.Render(clear_color);
