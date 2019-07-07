@@ -25,7 +25,7 @@ class OpenCVSLIC: public ISuperpixel {
 };
 
 #ifdef HAS_LIBGSLIC
-#include "gSLICr/gSLICr_Lib/gSLICr.h"
+#include "gSLICr_Lib/gSLICr.h"
 class GSLIC: public ISuperpixel {
     public:
     GSLIC(gSLICr::objects::settings settings);
