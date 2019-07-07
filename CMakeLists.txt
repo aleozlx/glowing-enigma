@@ -75,7 +75,7 @@ add_executable(superpixel_analyzer
     ${root}/examples/imgui_impl_glfw.cpp ${root}/examples/imgui_impl_opengl3.cpp)
 target_compile_definitions(superpixel_analyzer PUBLIC IMGUI_IMPL_OPENGL_LOADER_GLEW)
 if(CUDA_FOUND)
-    target_compile_definitions(superpixel_analyzer PUBLIC USE_GSLIC)
+    target_compile_definitions(superpixel_analyzer PUBLIC HAS_LIBGSLIC)
     target_link_libraries(superpixel_analyzer gSLICr)
 endif()
 target_include_directories(superpixel_analyzer PUBLIC ${root}/examples)

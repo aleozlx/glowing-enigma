@@ -26,3 +26,72 @@ void OpenCVSLIC::GetLabels(cv::OutputArray output) {
 unsigned int OpenCVSLIC::GetNumSuperpixels() {
     return segmentation->getNumberOfSuperpixels();
 }
+
+#ifdef HAS_LIBGSLIC
+GSLIC::GSLIC(gSLICr::objects::settings settings):
+    in_img(settings.img_size, true, true),
+    out_img(settings.img_size, true, true),
+    gSLICr_engine(settings)
+{
+    this->width = settings.img_size.x;
+    this->height = settings.img_size.y;
+}
+
+void GSLIC::with(cv::InputArray frame) {
+    this->frame = frame.getMat();
+}
+
+ISuperpixel* GSLIC::Compute() {
+    CV_Assert(frame.cols == (int)width && frame.rows == (int)height);
+    copy_image(frame, &in_img);
+    gSLICr_engine.Process_Frame(&in_img);
+    return nullptr;
+}
+// #include <iostream>
+void GSLIC::GetContour(cv::OutputArray output) {
+    // std::cout<<"GetContour()"<<std::endl;
+    cv::Mat outmat = output.getMat();
+    // std::cout<<"Draw()"<<std::endl;
+    gSLICr_engine.Draw_Segmentation_Result(&out_img);
+    // std::cout<<"Draw()e"<<std::endl;
+    copy_image(&out_img, outmat);
+}
+
+void GSLIC::GetLabels(cv::OutputArray output) {
+
+}
+
+unsigned int GSLIC::GetNumSuperpixels() {
+    return 0;
+}
+
+void GSLIC::copy_image(const cv::Mat& inimg, gSLICr::UChar4Image* outimg) {
+	gSLICr::Vector4u* outimg_ptr = outimg->GetData(MEMORYDEVICE_CPU);
+
+	for (int y = 0; y < outimg->noDims.y;y++) {
+        const unsigned char* iptr = inimg.ptr(y);
+		for (int x = 0; x < outimg->noDims.x; x++)
+		{
+			int idx = x + y * outimg->noDims.x;
+			outimg_ptr[idx].b = iptr[x*3];
+			outimg_ptr[idx].g = iptr[x*3+1];
+			outimg_ptr[idx].r = iptr[x*3+2];
+		}
+    }
+}
+
+void GSLIC::copy_image(const gSLICr::UChar4Image* inimg, cv::Mat& outimg) {
+	const gSLICr::Vector4u* inimg_ptr = inimg->GetData(MEMORYDEVICE_CPU);
+
+	for (int y = 0; y < inimg->noDims.y; y++) {
+        unsigned char* optr = outimg.ptr(y);
+		for (int x = 0; x < inimg->noDims.x; x++)
+		{
+			int idx = x + y * inimg->noDims.x;
+			optr[x*3] = inimg_ptr[idx].b;
+			optr[x*3+1] = inimg_ptr[idx].g;
+			optr[x*3+2] = inimg_ptr[idx].r;
+		}
+    }
+}
+#endif
