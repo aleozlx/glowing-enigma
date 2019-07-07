@@ -55,7 +55,6 @@ if(CUDA_FOUND)
     )
     cuda_add_library(gSLICr
         ${GSLICR_LIB}
-        gSLICr/NVTimer.h
         OPTIONS -gencode arch=compute_30,code=compute_30)
     target_link_libraries(gSLICr ${CUDA_LIBRARY})
 endif()
