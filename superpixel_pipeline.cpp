@@ -45,16 +45,17 @@ ISuperpixel* GSLIC::Compute() {
     CV_Assert(frame.cols == (int)width && frame.rows == (int)height);
     copy_image(frame, &in_img);
     gSLICr_engine.Process_Frame(&in_img);
-    return nullptr;
+    return dynamic_cast<ISuperpixel*>(this);
 }
 // #include <iostream>
 void GSLIC::GetContour(cv::OutputArray output) {
-    // std::cout<<"GetContour()"<<std::endl;
-    cv::Mat outmat = output.getMat();
+    cv::Mat outmat;
+    outmat.create(cv::Size(width, height), CV_8UC3);
     // std::cout<<"Draw()"<<std::endl;
     gSLICr_engine.Draw_Segmentation_Result(&out_img);
     // std::cout<<"Draw()e"<<std::endl;
     copy_image(&out_img, outmat);
+    output.assign(outmat);
 }
 
 void GSLIC::GetLabels(cv::OutputArray output) {
@@ -88,9 +89,10 @@ void GSLIC::copy_image(const gSLICr::UChar4Image* inimg, cv::Mat& outimg) {
 		for (int x = 0; x < inimg->noDims.x; x++)
 		{
 			int idx = x + y * inimg->noDims.x;
-			optr[x*3] = inimg_ptr[idx].b;
+            // Note: output is RGB
+			optr[x*3] = inimg_ptr[idx].r;
 			optr[x*3+1] = inimg_ptr[idx].g;
-			optr[x*3+2] = inimg_ptr[idx].r;
+			optr[x*3+2] = inimg_ptr[idx].b;
 		}
     }
 }

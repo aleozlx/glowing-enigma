@@ -89,6 +89,29 @@ target_link_libraries(superpixel_analyzer imgui ${SOIL_LIBRARY} ${GLFW_LIBRARIES
     opencv_video
 )
 
+# gSLIC Demo
+include_directories(SYSTEM "/usr/include/opencv4")
+add_executable(gslic_demo
+    ${CMAKE_CURRENT_SOURCE_DIR}/main-gslic.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/app.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/superpixel_pipeline.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/teximage.cpp
+    ${root}/examples/imgui_impl_glfw.cpp ${root}/examples/imgui_impl_opengl3.cpp)
+target_compile_definitions(gslic_demo PUBLIC IMGUI_IMPL_OPENGL_LOADER_GLEW)
+if(CUDA_FOUND)
+    target_compile_definitions(gslic_demo PUBLIC HAS_LIBGSLIC)
+    target_link_libraries(gslic_demo gSLICr)
+endif()
+target_include_directories(gslic_demo PUBLIC ${root}/examples)
+target_link_libraries(gslic_demo imgui ${SOIL_LIBRARY} ${GLFW_LIBRARIES} ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES}
+    opencv_core
+    opencv_imgproc
+    opencv_ximgproc
+    opencv_imgcodecs
+    opencv_videoio
+    opencv_video
+)
+
 # set(targets imgui)
 # set(headers_to_install ${phdrs})
 
