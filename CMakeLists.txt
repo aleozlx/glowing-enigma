@@ -20,7 +20,7 @@ find_package(CUDA 10)
 # More Packages
 find_package(Boost)
 
-# ImGui library
+# ImGui Library
 set(root ${CMAKE_CURRENT_SOURCE_DIR}/imgui)
 set(phdrs ${root}/imgui.h)
 set(hdrs ${root}/imstb_rectpack.h ${root}/imstb_textedit.h ${root}/imstb_truetype.h
@@ -34,7 +34,33 @@ target_include_directories(imgui PUBLIC
     $<INSTALL_INTERFACE:include>)
 target_compile_definitions(imgui PUBLIC IMGUI_DISABLE_INCLUDE_IMCONFIG_H)
 
-# ImGui demo
+# gSLIC Library (optional)
+if(CUDA_FOUND)
+    set(CFLAGS_WARN "-Wall -Wextra -Wno-unused-parameter -Wno-strict-aliasing -Wno-misleading-indentation")
+    set(CMAKE_CXX_FLAGS "-fPIC -O3 -march=native ${CFLAGS_WARN} ${CMAKE_CXX_FLAGS}")
+    include_directories(${CUDA_INCLUDE_DIRS})
+    include_directories(${OpenCV_INCLUDE_DIRS})
+    set(GSLICR_LIB
+        gSLICr/gSLICr_Lib/engines/gSLICr_core_engine.h
+        gSLICr/gSLICr_Lib/engines/gSLICr_seg_engine.h
+        gSLICr/gSLICr_Lib/engines/gSLICr_seg_engine_GPU.h
+        gSLICr/gSLICr_Lib/engines/gSLICr_seg_engine_shared.h
+        gSLICr/gSLICr_Lib/engines/gSLICr_core_engine.cpp
+        gSLICr/gSLICr_Lib/engines/gSLICr_seg_engine.cpp
+        gSLICr/gSLICr_Lib/engines/gSLICr_seg_engine_GPU.cu
+        gSLICr/gSLICr_Lib/objects/gSLICr_settings.h
+        gSLICr/gSLICr_Lib/objects/gSLICr_spixel_info.h
+        gSLICr/gSLICr_Lib/gSLICr_defines.h
+        gSLICr/gSLICr_Lib/gSLICr.h
+    )
+    cuda_add_library(gSLICr
+        ${GSLICR_LIB}
+        gSLICr/NVTimer.h
+        OPTIONS -gencode arch=compute_30,code=compute_30)
+    target_link_libraries(gSLICr ${CUDA_LIBRARY})
+endif()
+
+# ImGui Demo
 add_executable(gui_demo ${CMAKE_CURRENT_SOURCE_DIR}/gui-demo.cpp ${root}/examples/imgui_impl_glfw.cpp ${root}/examples/imgui_impl_opengl3.cpp)
 target_compile_definitions(gui_demo PUBLIC IMGUI_IMPL_OPENGL_LOADER_GLEW)
 target_include_directories(gui_demo PUBLIC ${root}/examples)
@@ -48,6 +74,10 @@ add_executable(superpixel_analyzer
     ${CMAKE_CURRENT_SOURCE_DIR}/teximage.cpp
     ${root}/examples/imgui_impl_glfw.cpp ${root}/examples/imgui_impl_opengl3.cpp)
 target_compile_definitions(superpixel_analyzer PUBLIC IMGUI_IMPL_OPENGL_LOADER_GLEW)
+if(CUDA_FOUND)
+    target_compile_definitions(superpixel_analyzer PUBLIC USE_GSLIC)
+    target_link_libraries(superpixel_analyzer gSLICr)
+endif()
 target_include_directories(superpixel_analyzer PUBLIC ${root}/examples)
 target_link_libraries(superpixel_analyzer imgui ${SOIL_LIBRARY} ${GLFW_LIBRARIES} ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES}
     opencv_core
