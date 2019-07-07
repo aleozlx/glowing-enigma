@@ -24,4 +24,25 @@ class OpenCVSLIC: public ISuperpixel {
     cv::Ptr<cv::ximgproc::SuperpixelSLIC> segmentation;
 };
 
+#ifdef HAS_LIBGSLIC
+#include "gSLICr/gSLICr_Lib/gSLICr.h"
+class GSLIC: public ISuperpixel {
+    public:
+    GSLIC(gSLICr::objects::settings settings);
+    void with(cv::InputArray frame);
+    ISuperpixel* Compute() override;
+    void GetContour(cv::OutputArray output) override;
+    void GetLabels(cv::OutputArray output) override;
+    unsigned int GetNumSuperpixels() override;
+
+    protected:
+    cv::Mat frame;
+    unsigned int width, height;
+    gSLICr::UChar4Image in_img, out_img;
+    gSLICr::engines::core_engine gSLICr_engine;
+    static void copy_image(const cv::Mat& inimg, gSLICr::UChar4Image* outimg);
+    static void copy_image(const gSLICr::UChar4Image* inimg, cv::Mat& outimg);
+};
+#endif
+
 #endif

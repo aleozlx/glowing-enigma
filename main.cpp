@@ -249,6 +249,25 @@ int main(int, char**) {
     TexImage imHistogram(432, 400, 3);
     cv::Mat histogram, histogram_rgb;
 
+#define USE_OCVSLIC
+#ifdef HAS_LIBGSLIC
+#undef USE_OCVSLIC
+#define USE_GSLIC
+#ifdef USE_GSLIC
+    gSLICr::objects::settings my_settings;
+	my_settings.img_size.x = 432;
+	my_settings.img_size.y = 240;
+	// my_settings.no_segs = 2000;
+	my_settings.spixel_size = 32;
+	my_settings.coh_weight = 0.6f;
+	my_settings.no_iters = 5;
+	my_settings.color_space = gSLICr::XYZ; // gSLICr::CIELAB for Lab, or gSLICr::RGB for RGB
+	my_settings.seg_method = gSLICr::GIVEN_SIZE; // or gSLICr::GIVEN_NUM for given number
+	my_settings.do_enforce_connectivity = true; // whether or not run the enforce connectivity step
+    GSLIC _superpixel(my_settings);
+#endif
+#endif
+
     // Main loop
     while (!glfwWindowShouldClose(window)){
         glfwPollEvents();
@@ -260,7 +279,7 @@ int main(int, char**) {
             static float superpixel_size = 32.0f;
             static int pointer_x = 0, pointer_y = 0;
             static unsigned int superpixel_id = 0;
-            static bool use_spotlight = true;
+            static bool use_spotlight = false;
             static bool use_magnifier = false;
 
             ImGui::Begin("Superpixel Analyzer");
@@ -269,16 +288,23 @@ int main(int, char**) {
             cv::cvtColor(frame, frame_rgb, cv::COLOR_BGR2RGB);
             cv::medianBlur(frame, frame_hsv, 5);
             cv::cvtColor(frame_hsv, frame_hsv, cv::COLOR_BGR2HSV);
+#ifdef USE_OCVSLIC
             OpenCVSLIC _superpixel(frame_hsv, superpixel_size, 30.0f, 3, 10.0f);
+#endif
+#ifdef USE_GSLIC
+            _superpixel.with(frame);
+#endif
             ISuperpixel* superpixel = _superpixel.Compute();
+            std::cout<<"Compute()e"<<std::endl;
 
             superpixel->GetContour(superpixel_contour);
-            superpixel->GetLabels(superpixel_labels);
-            superpixel_id = superpixel_labels.at<unsigned int>(pointer_y, pointer_x);
-            superpixel_selected = superpixel_labels == superpixel_id;
-            cv::meanStdDev(frame_rgb, sel_mean, sel_std, superpixel_selected);
-            if (use_spotlight) spotlight(frame_rgb, superpixel_selected, 0.5);
-            frame_rgb.setTo(cv::Scalar(200, 5, 240), superpixel_contour);
+            std::cout<<"GetContour()e"<<std::endl;
+            // superpixel->GetLabels(superpixel_labels);
+            // superpixel_id = superpixel_labels.at<unsigned int>(pointer_y, pointer_x);
+            // superpixel_selected = superpixel_labels == superpixel_id;
+            // cv::meanStdDev(frame_rgb, sel_mean, sel_std, superpixel_selected);
+            // if (use_spotlight) spotlight(frame_rgb, superpixel_selected, 0.5);
+            // frame_rgb.setTo(cv::Scalar(200, 5, 240), superpixel_contour);
             
             imSuperpixels.Load(frame_rgb.data);
             ImGui::Text("(%d, %d) => (%d,)", imSuperpixels.width, imSuperpixels.height, superpixel->GetNumSuperpixels());
