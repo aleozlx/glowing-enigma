@@ -119,7 +119,6 @@ struct Camera {
 /// Management of image data in texture
 class TexImage {
     private:
-    bool _firstCall;
     GLuint texid;
 
     public:
@@ -127,8 +126,7 @@ class TexImage {
     float f32width, f32height;
 
     TexImage(unsigned int width, unsigned int height, unsigned int channels) {
-        this->_firstCall = true;
-        this->texid = 0;
+        this->texid = 0; // The value zero is reserved to represent the default texture for each texture target - Khronos
         this->width = width;
         this->f32width = (float) width;
         this->height = height;
@@ -137,15 +135,10 @@ class TexImage {
     }
 
     void Load(const unsigned char *data) {
-        GLuint ret = SOIL_create_OGL_texture(
+        this->texid = SOIL_create_OGL_texture(
             data, width, height, channels,
-            this->_firstCall?SOIL_CREATE_NEW_ID:texid,
-            SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB | SOIL_FLAG_COMPRESS_TO_DXT
+            this->texid, SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB | SOIL_FLAG_COMPRESS_TO_DXT
         );
-        if (this->_firstCall) {
-            texid = ret;
-            this->_firstCall = false;
-        }
     }
 
     inline ImTextureID id() {
