@@ -70,6 +70,7 @@ target_link_libraries(gui_demo imgui ${SOIL_LIBRARY} ${GLFW_LIBRARIES} ${GLEW_LI
 include_directories(SYSTEM "/usr/include/opencv4")
 add_executable(superpixel_analyzer
     ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/app.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/superpixel_pipeline.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/teximage.cpp
     ${root}/examples/imgui_impl_glfw.cpp ${root}/examples/imgui_impl_opengl3.cpp)
