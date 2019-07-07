@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.3)
-project(imgui)
+project(glowing-enigma)
 set(OpenGL_GL_PREFERENCE GLVND)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/modules)
 
@@ -11,8 +11,16 @@ find_package(PkgConfig REQUIRED)
 pkg_search_module(GLFW REQUIRED glfw3)
 
 # Computer Vision Packages
-find_package(OpenCV)
+find_package(OpenCV REQUIRED)
 
+# Machine Learning Packages
+find_package(TensorFlow)
+find_package(CUDA 10)
+
+# More Packages
+find_package(Boost)
+
+# ImGui library
 set(root ${CMAKE_CURRENT_SOURCE_DIR}/imgui)
 set(phdrs ${root}/imgui.h)
 set(hdrs ${root}/imstb_rectpack.h ${root}/imstb_textedit.h ${root}/imstb_truetype.h
@@ -26,16 +34,22 @@ target_include_directories(imgui PUBLIC
     $<INSTALL_INTERFACE:include>)
 target_compile_definitions(imgui PUBLIC IMGUI_DISABLE_INCLUDE_IMCONFIG_H)
 
-# add_executable(my_demo ${CMAKE_CURRENT_SOURCE_DIR}/gui-demo.cpp ${root}/examples/imgui_impl_glfw.cpp ${root}/examples/imgui_impl_opengl3.cpp)
-# target_compile_definitions(my_demo PUBLIC IMGUI_IMPL_OPENGL_LOADER_GLEW)
-# target_include_directories(my_demo PUBLIC ${root}/examples)
-# target_link_libraries(my_demo imgui ${SOIL_LIBRARY} ${GLFW_LIBRARIES} ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES})
+# ImGui demo
+add_executable(gui_demo ${CMAKE_CURRENT_SOURCE_DIR}/gui-demo.cpp ${root}/examples/imgui_impl_glfw.cpp ${root}/examples/imgui_impl_opengl3.cpp)
+target_compile_definitions(gui_demo PUBLIC IMGUI_IMPL_OPENGL_LOADER_GLEW)
+target_include_directories(gui_demo PUBLIC ${root}/examples)
+target_link_libraries(gui_demo imgui ${SOIL_LIBRARY} ${GLFW_LIBRARIES} ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES})
 
+# Superpixel Analyzer
 include_directories(SYSTEM "/usr/include/opencv4")
-add_executable(camera_demo ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp ${CMAKE_CURRENT_SOURCE_DIR}/superpixel_pipeline.cpp ${root}/examples/imgui_impl_glfw.cpp ${root}/examples/imgui_impl_opengl3.cpp)
-target_compile_definitions(camera_demo PUBLIC IMGUI_IMPL_OPENGL_LOADER_GLEW)
-target_include_directories(camera_demo PUBLIC ${root}/examples)
-target_link_libraries(camera_demo imgui ${SOIL_LIBRARY} ${GLFW_LIBRARIES} ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES}
+add_executable(superpixel_analyzer
+    ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/superpixel_pipeline.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/teximage.cpp
+    ${root}/examples/imgui_impl_glfw.cpp ${root}/examples/imgui_impl_opengl3.cpp)
+target_compile_definitions(superpixel_analyzer PUBLIC IMGUI_IMPL_OPENGL_LOADER_GLEW)
+target_include_directories(superpixel_analyzer PUBLIC ${root}/examples)
+target_link_libraries(superpixel_analyzer imgui ${SOIL_LIBRARY} ${GLFW_LIBRARIES} ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES}
     opencv_core
     opencv_imgproc
     opencv_ximgproc

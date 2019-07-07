@@ -1,17 +1,20 @@
-#include "imgui.h"
-#include "imgui_impl_glfw.h"
-#include "imgui_impl_opengl3.h"
 #include <iostream>
 #include <string>
 #include <vector>
+
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
-#include <SOIL/SOIL.h>
+
 #include <opencv2/imgproc.hpp>
 #include <opencv2/videoio.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/core/utility.hpp>
+
 #include "superpixel_pipeline.hpp"
+#include "teximage.hpp"
 
 static void glfw_error_callback(int error, const char* description) {
     std::cerr << "Glfw Error " << error << description << std::endl;
@@ -115,45 +118,6 @@ struct Camera {
         }
     }
 };
-
-/// Management of image data in texture
-class TexImage {
-    private:
-    GLuint texid;
-
-    public:
-    unsigned int width, height, channels;
-    float f32width, f32height;
-
-    TexImage(unsigned int width, unsigned int height, unsigned int channels) {
-        this->texid = 0; // The value zero is reserved to represent the default texture for each texture target - Khronos
-        this->width = width;
-        this->f32width = (float) width;
-        this->height = height;
-        this->f32height = (float) height;
-        this->channels = channels;
-    }
-
-    void Load(const unsigned char *data) {
-        this->texid = SOIL_create_OGL_texture(
-            data, width, height, channels,
-            this->texid, SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB | SOIL_FLAG_COMPRESS_TO_DXT
-        );
-    }
-
-    inline ImTextureID id() {
-        return reinterpret_cast<void*>(texid);
-    }
-
-    ImVec2 uv(float px=0.0f, float py=0.0f) {
-        return ImVec2(px / f32width, py / f32height);
-    }
-
-    ImVec2 size() {
-        return ImVec2(f32width, f32height);
-    }
-};
-
 
 std::string cv_type2str(int type) {
     /*
@@ -346,7 +310,6 @@ int main(int, char**) {
 
             RGBHistogram hist(frame, imHistogram.width, imHistogram.height, (use_spotlight?0.3f:1.0f));
             hist.Compute(histogram, use_spotlight?superpixel_selected:cv::noArray());
-            // cv::cvtColor(histogram, histogram_rgb, cv::COLOR_BGR2RGB);
             imHistogram.Load(histogram.data);
             ImGui::Image(imHistogram.id(), imHistogram.size(), ImVec2(0,0), ImVec2(1,1), ImVec4(1.0f,1.0f,1.0f,1.0f), ImVec4(1.0f,1.0f,1.0f,0.5f));
             ImGui::End();
