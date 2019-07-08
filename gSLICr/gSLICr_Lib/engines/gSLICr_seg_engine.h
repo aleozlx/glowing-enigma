@@ -46,6 +46,7 @@ namespace gSLICr
 
 			void Perform_Segmentation(UChar4Image* in_img);
 			virtual void Draw_Segmentation_Result(UChar4Image* out_img){};
+			virtual void Draw_Boundary_Mask(MaskImage* out_img){};
 		};
 	}
 }

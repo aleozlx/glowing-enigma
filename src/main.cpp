@@ -98,6 +98,9 @@ struct RGBHistogram {
     }
 };
 
+const unsigned int WIDTH = 432;
+const unsigned int HEIGHT = 240;
+
 int main(int, char**) {
     App app = App::Initialize();
     if (!app.ok) return 1;
@@ -106,7 +109,7 @@ int main(int, char**) {
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
-    Camera cam(0, 432, 240);
+    Camera cam(0, WIDTH, HEIGHT);
     cam.open();
 
     cv::Mat frame, frame_rgb, frame_hsv;
@@ -116,8 +119,23 @@ int main(int, char**) {
     cv::Size frame_size = frame.size();
     int width=frame_size.width, height=frame_size.height, channels=3;
     TexImage imSuperpixels(width, height, channels);
-    TexImage imHistogram(432, 400, 3);
+    TexImage imHistogram(width, height, channels);
     cv::Mat histogram, histogram_rgb;
+
+#ifdef HAS_LIBGSLIC
+    GSLIC _superpixel({
+        .img_size = { width, height },
+        .no_segs = 64,
+        .spixel_size = 32,
+        .no_iters = 5,
+        .coh_weight = 0.6f,
+        .do_enforce_connectivity = true,
+        .color_space = gSLICr::XYZ, // gSLICr::CIELAB | gSLICr::RGB
+        .seg_method = gSLICr::GIVEN_SIZE // gSLICr::GIVEN_NUM
+    });
+#else
+    OpenCVSLIC _superpixel(32, 30.0f, 3, 10.0f);
+#endif
 
     // Main loop
     while (!glfwWindowShouldClose(window)){
@@ -127,7 +145,6 @@ int main(int, char**) {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
         {
-            static float superpixel_size = 32.0f;
             static int pointer_x = 0, pointer_y = 0;
             static unsigned int superpixel_id = 0;
             static bool use_spotlight = true;
@@ -139,15 +156,18 @@ int main(int, char**) {
             cv::cvtColor(frame, frame_rgb, cv::COLOR_BGR2RGB);
             cv::medianBlur(frame, frame_hsv, 5);
             cv::cvtColor(frame_hsv, frame_hsv, cv::COLOR_BGR2HSV);
-            OpenCVSLIC _superpixel(frame_hsv, superpixel_size, 30.0f, 3, 10.0f);
-            ISuperpixel* superpixel = _superpixel.Compute();
+#ifdef HAS_LIBGSLIC
+            ISuperpixel* superpixel = _superpixel.Compute(frame);
+#else
+            ISuperpixel* superpixel = _superpixel.Compute(frame_hsv);
+#endif
 
             superpixel->GetContour(superpixel_contour);
-            superpixel->GetLabels(superpixel_labels);
-            superpixel_id = superpixel_labels.at<unsigned int>(pointer_y, pointer_x);
-            superpixel_selected = superpixel_labels == superpixel_id;
-            cv::meanStdDev(frame_rgb, sel_mean, sel_std, superpixel_selected);
-            if (use_spotlight) spotlight(frame_rgb, superpixel_selected, 0.5);
+            // superpixel->GetLabels(superpixel_labels);
+            // superpixel_id = superpixel_labels.at<unsigned int>(pointer_y, pointer_x);
+            // superpixel_selected = superpixel_labels == superpixel_id;
+            // cv::meanStdDev(frame_rgb, sel_mean, sel_std, superpixel_selected);
+            // if (use_spotlight) spotlight(frame_rgb, superpixel_selected, 0.5);
             frame_rgb.setTo(cv::Scalar(200, 5, 240), superpixel_contour);
             
             imSuperpixels.Load(frame_rgb.data);
@@ -173,7 +193,19 @@ int main(int, char**) {
                     ImGui::EndTooltip();
                 }
             }
-            ImGui::SliderFloat("Size", &superpixel_size, 15.0f, 80.0f);
+#ifndef HAS_LIBGSLIC
+            ImGui::SliderFloat("Size", &_superpixel.superpixel_size, 15.0f, 80.0f);
+#else
+            float _superpixel_size = 32.0f;
+            ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
+            ImGui::SliderFloat("Size", &_superpixel_size, 15.0f, 80.0f);
+            ImGui::PopStyleVar();
+            if (ImGui::IsItemHovered()) {
+                ImGui::BeginTooltip();
+                ImGui::Text("The gSLIC method will have a fixed superpixel size. Modify from the source code!");
+                ImGui::EndTooltip();
+            }
+#endif
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
             ImGui::Checkbox("Spotlight", &use_spotlight); ImGui::SameLine(150);
             ImGui::Checkbox("Magnifier", &use_magnifier);

@@ -5,7 +5,7 @@
 
 class ISuperpixel {
     public:
-    virtual ISuperpixel* Compute() = 0;
+    virtual ISuperpixel* Compute(cv::InputArray frame) = 0;
     virtual void GetContour(cv::OutputArray output) = 0;
     virtual void GetLabels(cv::OutputArray output) = 0;
     virtual unsigned int GetNumSuperpixels() = 0;
@@ -13,8 +13,8 @@ class ISuperpixel {
 
 class OpenCVSLIC: public ISuperpixel {
     public:
-    OpenCVSLIC(cv::InputArray frame, float superpixel_size, float ruler, unsigned int num_iter, float min_size);
-    ISuperpixel* Compute() override;
+    OpenCVSLIC(float superpixel_size, float ruler, unsigned int num_iter, float min_size);
+    ISuperpixel* Compute(cv::InputArray frame) override;
     void GetContour(cv::OutputArray output) override;
     void GetLabels(cv::OutputArray output) override;
     unsigned int GetNumSuperpixels() override;
@@ -29,19 +29,19 @@ class OpenCVSLIC: public ISuperpixel {
 class GSLIC: public ISuperpixel {
     public:
     GSLIC(gSLICr::objects::settings settings);
-    void with(cv::InputArray frame);
-    ISuperpixel* Compute() override;
+    ISuperpixel* Compute(cv::InputArray frame) override;
     void GetContour(cv::OutputArray output) override;
     void GetLabels(cv::OutputArray output) override;
     unsigned int GetNumSuperpixels() override;
 
     protected:
-    cv::Mat frame;
     unsigned int width, height;
-    gSLICr::UChar4Image in_img, out_img;
+    gSLICr::UChar4Image in_img;
+    // gSLICr::MaskImage out_img;
     gSLICr::engines::core_engine gSLICr_engine;
     static void copy_image(const cv::Mat& inimg, gSLICr::UChar4Image* outimg);
     static void copy_image(const gSLICr::UChar4Image* inimg, cv::Mat& outimg);
+    // static void copy_image(const gSLICr::MaskImage* inimg, cv::Mat& outimg);
 };
 #endif
 

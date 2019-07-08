@@ -30,6 +30,11 @@ void gSLICr::engines::core_engine::Draw_Segmentation_Result(UChar4Image* out_img
 	slic_seg_engine->Draw_Segmentation_Result(out_img);
 }
 
+void gSLICr::engines::core_engine::Draw_Boundary_Mask(MaskImage* out_img)
+{
+	slic_seg_engine->Draw_Boundary_Mask(out_img);
+}
+
 void gSLICr::engines::core_engine::Write_Seg_Res_To_PGM(const char* fileName)
 {
 	const IntImage* idx_img = slic_seg_engine->Get_Seg_Mask();

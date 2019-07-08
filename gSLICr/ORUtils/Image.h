@@ -62,6 +62,15 @@ namespace ORUtils
 		// Suppress the default copy constructor and assignment operator
 		Image(const Image&);
 		Image& operator=(const Image&);
+
+		// In case something else should own the data.
+		void use_data_cpu(T* ptr) {
+			this->data_cpu = ptr;
+		}
+		void force_download() {
+			ORcudaSafeCall(cudaMemcpy(
+				this->data_cpu, this->data_cuda, this->dataSize * sizeof(T), cudaMemcpyDeviceToHost));
+		}
 	};
 }
 
