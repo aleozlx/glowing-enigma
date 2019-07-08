@@ -48,7 +48,7 @@ ISuperpixel* GSLIC::Compute(cv::InputArray _frame) {
 void GSLIC::GetContour(cv::OutputArray output) {
     cv::Mat outmat;
     outmat.create(cv::Size(width, height), CV_8UC1);
-    gSLICr::MaskImage out_img({width, height}, false, true);
+    gSLICr::MaskImage out_img({(int)width, (int)height}, false, true);
     out_img.use_data_cpu(outmat.data);
     gSLICr_engine.Draw_Boundary_Mask(&out_img);
     out_img.force_download();
@@ -57,11 +57,25 @@ void GSLIC::GetContour(cv::OutputArray output) {
 }
 
 void GSLIC::GetLabels(cv::OutputArray output) {
+    cv::Mat outmat;
+    outmat.create(cv::Size(width, height), CV_32SC1);
     const gSLICr::IntImage *segmentation = gSLICr_engine.Get_Seg_Res();
+    copy_image_c1(segmentation, outmat);
+    output.assign(outmat);
+    if (actual_num_superpixels==0) { // compute num of superpixels while we are at it
+        double m = 0;
+        cv::minMaxIdx(outmat, nullptr, &m);
+        actual_num_superpixels = static_cast<unsigned int>(m) + 1;
+    }
 }
 
 unsigned int GSLIC::GetNumSuperpixels() {
-    return 0;
+    if (actual_num_superpixels==0) {
+        const gSLICr::IntImage *segmentation = gSLICr_engine.Get_Seg_Res();
+        // a quick & dirty way to get max
+        actual_num_superpixels = static_cast<unsigned int>(max_c1(segmentation)) + 1;
+    }
+    return actual_num_superpixels;
 }
 
 void GSLIC::copy_image(const cv::Mat& inimg, gSLICr::UChar4Image* outimg) {
@@ -94,19 +108,4 @@ void GSLIC::copy_image(const gSLICr::UChar4Image* inimg, cv::Mat& outimg) {
 		}
     }
 }
-
-#if 0
-void GSLIC::copy_image(const gSLICr::MaskImage* inimg, cv::Mat& outimg) {
-	const unsigned char* inimg_ptr = inimg->GetData(MEMORYDEVICE_CPU);
-
-	for (int y = 0; y < inimg->noDims.y; y++) {
-        unsigned char* optr = outimg.ptr(y);
-		for (int x = 0; x < inimg->noDims.x; x++)
-		{
-			int idx = x + y * inimg->noDims.x;
-			optr[x] = inimg_ptr[idx];
-		}
-    }
-}
-#endif
 #endif

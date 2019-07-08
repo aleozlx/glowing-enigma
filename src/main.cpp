@@ -163,11 +163,11 @@ int main(int, char**) {
 #endif
 
             superpixel->GetContour(superpixel_contour);
-            // superpixel->GetLabels(superpixel_labels);
-            // superpixel_id = superpixel_labels.at<unsigned int>(pointer_y, pointer_x);
-            // superpixel_selected = superpixel_labels == superpixel_id;
-            // cv::meanStdDev(frame_rgb, sel_mean, sel_std, superpixel_selected);
-            // if (use_spotlight) spotlight(frame_rgb, superpixel_selected, 0.5);
+            superpixel->GetLabels(superpixel_labels);
+            superpixel_id = superpixel_labels.at<unsigned int>(pointer_y, pointer_x);
+            superpixel_selected = superpixel_labels == superpixel_id;
+            cv::meanStdDev(frame_rgb, sel_mean, sel_std, superpixel_selected);
+            if (use_spotlight) spotlight(frame_rgb, superpixel_selected, 0.5);
             frame_rgb.setTo(cv::Scalar(200, 5, 240), superpixel_contour);
             
             imSuperpixels.Load(frame_rgb.data);
