@@ -6,6 +6,7 @@
 #include <opencv2/videoio.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/core/utility.hpp>
+#include <opencv2/dnn.hpp>
 
 #include "app.hpp"
 #include "teximage.hpp"
@@ -134,6 +135,8 @@ int main(int, char**) {
     TexImage imSuperpixels(width, height, channels);
     TexImage imHistogram(width, height, channels);
     cv::Mat histogram, histogram_rgb;
+    // TODO add TensorRT model
+    // cv::dnn::Net net;
 
 #ifdef HAS_LIBGSLIC
     GSLIC _superpixel({
