@@ -33,11 +33,13 @@ struct RGBHistogram {
     float alpha;
     unsigned int width, height;
     std::vector<cv::Mat> bgr_planes;
+    bool normalize_component;
 
-    RGBHistogram(cv::InputArray inputRGBImage, unsigned int width, unsigned int height, float alpha=1.0f) {
+    RGBHistogram(cv::InputArray inputRGBImage, unsigned int width, unsigned int height, float alpha=1.0f, bool normalize_component=false) {
         this->width = width;
         this->height = height;
         this->alpha = alpha;
+        this->normalize_component = normalize_component;
         cv::split(inputRGBImage, bgr_planes);
     }
 
@@ -52,10 +54,10 @@ struct RGBHistogram {
         cv::calcHist(&bgr_planes[2], 1, 0, cv::noArray(), r_hist, 1, &histSize, &histRange, uniform, accumulate);
 
         // Draw the global histograms for B, G and R
-        int bin_w = cvRound((double) width/histSize);
+        float bin_w = (double)width / histSize;
         cv::Mat histImage(height, width, CV_8UC3, cv::Scalar(0,0,0));
 
-        /// Normalize the result to [ 0, histImage.rows ]
+        // Normalize the result
         double mb = cv::norm(b_hist, cv::NORM_INF),
             mg = cv::norm(g_hist, cv::NORM_INF),
             mr = cv::norm(r_hist, cv::NORM_INF);
@@ -64,10 +66,6 @@ struct RGBHistogram {
         g_hist = g_hist / max_count * histImage.rows;
         r_hist = r_hist / max_count * histImage.rows;
         
-        // cv::normalize(b_hist, b_hist, 0, histImage.rows, cv::NORM_MINMAX, -1, cv::noArray());
-        // cv::normalize(g_hist, g_hist, 0, histImage.rows, cv::NORM_MINMAX, -1, cv::noArray());
-        // cv::normalize(r_hist, r_hist, 0, histImage.rows, cv::NORM_MINMAX, -1, cv::noArray());
-
         // Draw for each channel
         // Note: Blue and Red channels are purposefully swapped to avoid color conversion before rendering
         float _alpha = mask.empty()?1.0f:this->alpha;
@@ -87,9 +85,16 @@ struct RGBHistogram {
             cv::calcHist(&bgr_planes[0], 1, 0, mask, b_hist, 1, &histSize, &histRange, uniform, accumulate);
             cv::calcHist(&bgr_planes[1], 1, 0, mask, g_hist, 1, &histSize, &histRange, uniform, accumulate);
             cv::calcHist(&bgr_planes[2], 1, 0, mask, r_hist, 1, &histSize, &histRange, uniform, accumulate);
-            b_hist = b_hist / max_count * histImage.rows;
-            g_hist = g_hist / max_count * histImage.rows;
-            r_hist = r_hist / max_count * histImage.rows;
+            if (normalize_component) {
+                cv::normalize(b_hist, b_hist, 0, histImage.rows, cv::NORM_MINMAX, -1, cv::noArray());
+                cv::normalize(g_hist, g_hist, 0, histImage.rows, cv::NORM_MINMAX, -1, cv::noArray());
+                cv::normalize(r_hist, r_hist, 0, histImage.rows, cv::NORM_MINMAX, -1, cv::noArray());
+            }
+            else {
+                b_hist = b_hist / max_count * histImage.rows;
+                g_hist = g_hist / max_count * histImage.rows;
+                r_hist = r_hist / max_count * histImage.rows;
+            }
             for(int i = 1;i < histSize;i++){
                 cv::line( histImage, cv::Point( bin_w*(i-1), height - cvRound(b_hist.at<float>(i-1)) ) ,
                                 cv::Point( bin_w*(i), height - cvRound(b_hist.at<float>(i)) ),
@@ -157,6 +162,7 @@ int main(int, char**) {
             static unsigned int superpixel_id = 0;
             static bool use_spotlight = true;
             static bool use_magnifier = false;
+            static bool normalize_component = false;
 
             ImGui::Begin("Superpixel Analyzer");
 
@@ -215,10 +221,11 @@ int main(int, char**) {
             }
 #endif
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-            ImGui::Checkbox("Spotlight", &use_spotlight); ImGui::SameLine(150);
-            ImGui::Checkbox("Magnifier", &use_magnifier);
+            ImGui::Checkbox("Spotlight", &use_spotlight); ImGui::SameLine(120);
+            ImGui::Checkbox("Magnifier", &use_magnifier); ImGui::SameLine(240);
+            ImGui::Checkbox("Normalize", &normalize_component);
 
-            RGBHistogram hist(frame, imHistogram.width, imHistogram.height, (use_spotlight?0.3f:1.0f));
+            RGBHistogram hist(frame, imHistogram.width, imHistogram.height, (use_spotlight?0.3f:1.0f), normalize_component);
             hist.Compute(histogram, use_spotlight?superpixel_selected:cv::noArray());
             imHistogram.Load(histogram.data);
             ImGui::Image(imHistogram.id(), imHistogram.size(), ImVec2(0,0), ImVec2(1,1), ImVec4(1.0f,1.0f,1.0f,1.0f), ImVec4(1.0f,1.0f,1.0f,0.5f));
