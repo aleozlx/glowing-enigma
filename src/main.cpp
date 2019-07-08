@@ -56,9 +56,17 @@ struct RGBHistogram {
         cv::Mat histImage(height, width, CV_8UC3, cv::Scalar(0,0,0));
 
         /// Normalize the result to [ 0, histImage.rows ]
-        cv::normalize(b_hist, b_hist, 0, histImage.rows, cv::NORM_MINMAX, -1, cv::noArray());
-        cv::normalize(g_hist, g_hist, 0, histImage.rows, cv::NORM_MINMAX, -1, cv::noArray());
-        cv::normalize(r_hist, r_hist, 0, histImage.rows, cv::NORM_MINMAX, -1, cv::noArray());
+        double mb = cv::norm(b_hist, cv::NORM_INF),
+            mg = cv::norm(g_hist, cv::NORM_INF),
+            mr = cv::norm(r_hist, cv::NORM_INF);
+        double max_count = std::max({mb, mg, mr});
+        b_hist = b_hist / max_count * histImage.rows;
+        g_hist = g_hist / max_count * histImage.rows;
+        r_hist = r_hist / max_count * histImage.rows;
+        
+        // cv::normalize(b_hist, b_hist, 0, histImage.rows, cv::NORM_MINMAX, -1, cv::noArray());
+        // cv::normalize(g_hist, g_hist, 0, histImage.rows, cv::NORM_MINMAX, -1, cv::noArray());
+        // cv::normalize(r_hist, r_hist, 0, histImage.rows, cv::NORM_MINMAX, -1, cv::noArray());
 
         // Draw for each channel
         // Note: Blue and Red channels are purposefully swapped to avoid color conversion before rendering
@@ -79,9 +87,9 @@ struct RGBHistogram {
             cv::calcHist(&bgr_planes[0], 1, 0, mask, b_hist, 1, &histSize, &histRange, uniform, accumulate);
             cv::calcHist(&bgr_planes[1], 1, 0, mask, g_hist, 1, &histSize, &histRange, uniform, accumulate);
             cv::calcHist(&bgr_planes[2], 1, 0, mask, r_hist, 1, &histSize, &histRange, uniform, accumulate);
-            // cv::normalize(b_hist, b_hist, 0, histImage.rows, cv::NORM_MINMAX, -1, cv::Mat());
-            // cv::normalize(g_hist, g_hist, 0, histImage.rows, cv::NORM_MINMAX, -1, cv::Mat());
-            // cv::normalize(r_hist, r_hist, 0, histImage.rows, cv::NORM_MINMAX, -1, cv::Mat());
+            b_hist = b_hist / max_count * histImage.rows;
+            g_hist = g_hist / max_count * histImage.rows;
+            r_hist = r_hist / max_count * histImage.rows;
             for(int i = 1;i < histSize;i++){
                 cv::line( histImage, cv::Point( bin_w*(i-1), height - cvRound(b_hist.at<float>(i-1)) ) ,
                                 cv::Point( bin_w*(i), height - cvRound(b_hist.at<float>(i)) ),
