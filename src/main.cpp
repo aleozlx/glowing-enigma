@@ -133,7 +133,7 @@ int main(int, char**) {
     cv::Size frame_size = frame.size();
     int width=frame_size.width, height=frame_size.height, channels=3;
     TexImage imSuperpixels(width, height, channels);
-    TexImage imHistogram(width, height, channels);
+    TexImage imHistogram(width - 20, height, channels);
     cv::Mat histogram, histogram_rgb;
 #ifdef HAS_LIBGSLIC
     GSLIC _superpixel({
@@ -162,31 +162,38 @@ int main(int, char**) {
             // * Pipeline Settings window
             // **********************
             ImGui::Begin("Pipeline Settings");
-            ImGui::Text("Enabled Features");
-            #define FEATURE(FEATURE_MACRO) ImGui::Text("-D " #FEATURE_MACRO)
-            #define FEATURE_VER(FEATURE_MACRO) ImGui::Text("-D " #FEATURE_MACRO " %s", VERSTR(FEATURE_MACRO))
-            #include "features.hpp"
-            ImGui::Separator();
+            if(ImGui::TreeNode("Enabled Features")) {
+                #define FEATURE(FEATURE_MACRO) ImGui::Text("-D " #FEATURE_MACRO)
+                #define FEATURE_VER(FEATURE_MACRO) ImGui::Text("-D " #FEATURE_MACRO " %s", VERSTR(FEATURE_MACRO))
+                #include "features.hpp"
+                ImGui::TreePop();
+            }
 
-            const char* d_cameras[] = { "video0" };
-            static const char* d_camera_current = d_cameras[0];
-            if (ImGui::BeginCombo("Video Feed", d_camera_current)) {
-                for (int n = 0; n < IM_ARRAYSIZE(d_cameras); n++) {
-                    bool is_selected = (d_camera_current == d_cameras[n]);
-                    if (ImGui::Selectable(d_cameras[n], is_selected))
-                        d_camera_current = d_cameras[n];
-                    if (is_selected)
-                        ImGui::SetItemDefaultFocus();
+            if(ImGui::TreeNode("Video Feed")) {
+                const char* d_cameras[] = { "video0" };
+                static const char* d_camera_current = d_cameras[0];
+                if (ImGui::BeginCombo("Source", d_camera_current)) {
+                    for (int n = 0; n < IM_ARRAYSIZE(d_cameras); n++) {
+                        bool is_selected = (d_camera_current == d_cameras[n]);
+                        if (ImGui::Selectable(d_cameras[n], is_selected))
+                            d_camera_current = d_cameras[n];
+                        if (is_selected)
+                            ImGui::SetItemDefaultFocus();
+                    }
+                    ImGui::EndCombo();
                 }
-                ImGui::EndCombo();
+                ImGui::TreePop();
             }
 
 #ifdef HAS_LIBGSLIC // with gSLIC, it is not efficient to use different superpixel sizes over time
-            static float d_superpixel_size = 32.0f;
-            ImGui::SliderFloat("Superpixel Size", &d_superpixel_size, 15.0f, 80.0f);
+            if(ImGui::TreeNode("Superpixels")) {
+                static float d_superpixel_size = 32.0f;
+                ImGui::SliderFloat("Superpixel Size", &d_superpixel_size, 15.0f, 80.0f);
+                ImGui::TreePop();
+            }
 #endif
             ImGui::Separator();
-            if(ImGui::Button("Apply")) {
+            if(ImGui::Button("Initialize")) {
                 // TODO reinitialize pipeline or create a new analyzer window
             }
             ImGui::End();
@@ -246,13 +253,17 @@ int main(int, char**) {
 #endif
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
             ImGui::Checkbox("Spotlight", &use_spotlight); ImGui::SameLine(120);
-            ImGui::Checkbox("Magnifier", &use_magnifier); ImGui::SameLine(240);
-            ImGui::Checkbox("Normalize", &normalize_component);
+            ImGui::Checkbox("Magnifier", &use_magnifier);
 
-            RGBHistogram hist(frame, imHistogram.width, imHistogram.height, (use_spotlight?0.3f:1.0f), normalize_component);
-            hist.Compute(histogram, use_spotlight?superpixel_selected:cv::noArray());
-            imHistogram.Load(histogram.data);
-            ImGui::Image(imHistogram.id(), imHistogram.size(), ImVec2(0,0), ImVec2(1,1), ImVec4(1.0f,1.0f,1.0f,1.0f), ImVec4(1.0f,1.0f,1.0f,0.5f));
+            ImGui::Separator();
+            if (ImGui::TreeNode("RGB Histogram")) {
+                ImGui::Checkbox("Normalize Superpixel", &normalize_component);
+                RGBHistogram hist(frame, imHistogram.width, imHistogram.height, (use_spotlight?0.3f:1.0f), normalize_component);
+                hist.Compute(histogram, use_spotlight?superpixel_selected:cv::noArray());
+                imHistogram.Load(histogram.data);
+                ImGui::Image(imHistogram.id(), imHistogram.size(), ImVec2(0,0), ImVec2(1,1), ImVec4(1.0f,1.0f,1.0f,1.0f), ImVec4(1.0f,1.0f,1.0f,0.5f));
+                ImGui::TreePop();
+            }
             ImGui::End();
         }
         app.Render(clear_color);
