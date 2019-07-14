@@ -20,6 +20,15 @@ find_package(CUDA 10)
 # More Packages
 find_package(Boost)
 
+# Feature definitions
+add_definitions("-DVER_OPENCV=${OpenCV_VERSION}")
+if(CUDA_FOUND)
+    add_definitions("-DHAS_CUDA=${CUDA_VERSION_STRING}")
+endif()
+if(TENSORFLOW_FOUND)
+    add_definitions("-DHAS_TF=${TensorFlow_VERSION}")
+endif()
+
 # ImGui Library
 set(root ${CMAKE_CURRENT_SOURCE_DIR}/imgui)
 set(phdrs ${root}/imgui.h)

@@ -162,6 +162,12 @@ int main(int, char**) {
             // * Pipeline Settings window
             // **********************
             ImGui::Begin("Pipeline Settings");
+            ImGui::Text("Enabled Features");
+            #define FEATURE(FEATURE_MACRO) ImGui::Text("-D " #FEATURE_MACRO)
+            #define FEATURE_VER(FEATURE_MACRO) ImGui::Text("-D " #FEATURE_MACRO " %s", VERSTR(FEATURE_MACRO))
+            #include "features.hpp"
+            ImGui::Separator();
+
             const char* d_cameras[] = { "video0" };
             static const char* d_camera_current = d_cameras[0];
             if (ImGui::BeginCombo("Video Feed", d_camera_current)) {
