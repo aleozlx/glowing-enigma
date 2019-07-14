@@ -260,7 +260,6 @@ int main(int, char**) {
             ImGui::Checkbox("Spotlight", &use_spotlight); ImGui::SameLine(120);
             ImGui::Checkbox("Magnifier", &use_magnifier);
 
-            ImGui::Separator();
             if (ImGui::TreeNode("RGB Histogram")) {
                 static bool normalize_component = true;
                 ImGui::Checkbox("Normalize Superpixel", &normalize_component);
@@ -268,6 +267,11 @@ int main(int, char**) {
                 hist.Compute(histogram, use_spotlight?superpixel_selected:cv::noArray());
                 imHistogram.Load(histogram.data);
                 ImGui::Image(imHistogram.id(), imHistogram.size(), ImVec2(0,0), ImVec2(1,1), ImVec4(1.0f,1.0f,1.0f,1.0f), ImVec4(1.0f,1.0f,1.0f,0.5f));
+                ImGui::TreePop();
+            }
+
+            if (ImGui::TreeNode("Superpixel Features")) {
+                ImGui::Text("Test.");
                 ImGui::TreePop();
             }
             ImGui::End();
