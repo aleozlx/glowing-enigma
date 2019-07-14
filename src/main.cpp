@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <tuple>
 
 #include <opencv2/imgproc.hpp>
 #include <opencv2/videoio.hpp>
@@ -123,12 +124,11 @@ int main(int, char**) {
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
-    std::vector<int> camera_ids = cv_misc::camera_enumerate();
-    std::vector<std::string> camera_names;
-    for (auto const v:camera_ids) {
+    std::vector<CameraInfo> cameras;
+    for (auto const v: cv_misc::camera_enumerate()) {
         char camera_name[20];
         std::snprintf(camera_name, IM_ARRAYSIZE(camera_name), "/dev/video%d", v);
-        camera_names.push_back(camera_name);
+        cameras.push_back({ .name = std::string(camera_name), .id = v });
     }
     Camera cam(0, WIDTH, HEIGHT);
     cam.open();
@@ -176,13 +176,13 @@ int main(int, char**) {
                 ImGui::TreePop();
             }
 
-            if(ImGui::TreeNode("Video Feed") && camera_ids.size()>0) {
-                static int d_camera_current = 0;
-                if (ImGui::BeginCombo("Source", camera_names[d_camera_current].c_str())) {
-                    for (int i = 0; i < camera_ids.size(); i++) {
-                        bool is_selected = (d_camera_current == i);
-                        if (ImGui::Selectable(camera_names[i].c_str(), is_selected))
-                            d_camera_current = i;
+            if(ImGui::TreeNode("Video Feed") && cameras.size()>0) {
+                static const CameraInfo *d_camera_current = &cameras[0];
+                if (ImGui::BeginCombo("Source", d_camera_current->name.c_str())) {
+                    for (auto const &camera_info: cameras) {
+                        bool is_selected = (d_camera_current == &camera_info);
+                        if (ImGui::Selectable(camera_info.name.c_str(), is_selected))
+                            d_camera_current = &camera_info;
                         if (is_selected)
                             ImGui::SetItemDefaultFocus();
                     }
@@ -211,7 +211,6 @@ int main(int, char**) {
             static unsigned int superpixel_id = 0;
             static bool use_spotlight = true;
             static bool use_magnifier = false;
-            static bool normalize_component = false;
 
             ImGui::Begin("Superpixel Analyzer");
 
@@ -263,6 +262,7 @@ int main(int, char**) {
 
             ImGui::Separator();
             if (ImGui::TreeNode("RGB Histogram")) {
+                static bool normalize_component = true;
                 ImGui::Checkbox("Normalize Superpixel", &normalize_component);
                 RGBHistogram hist(frame, imHistogram.width, imHistogram.height, (use_spotlight?0.3f:1.0f), normalize_component);
                 hist.Compute(histogram, use_spotlight?superpixel_selected:cv::noArray());

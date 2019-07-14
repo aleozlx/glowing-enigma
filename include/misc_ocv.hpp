@@ -28,6 +28,11 @@ struct Camera {
     }
 };
 
+struct CameraInfo {
+    std::string name;
+    int id;
+};
+
 namespace cv_misc {
 std::vector<int> camera_enumerate() {
     std::vector<int> ret;
