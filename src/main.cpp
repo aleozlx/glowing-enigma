@@ -123,6 +123,13 @@ int main(int, char**) {
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
+    std::vector<int> camera_ids = cv_misc::camera_enumerate();
+    std::vector<std::string> camera_names;
+    for (auto const v:camera_ids) {
+        char camera_name[20];
+        std::snprintf(camera_name, IM_ARRAYSIZE(camera_name), "/dev/video%d", v);
+        camera_names.push_back(camera_name);
+    }
     Camera cam(0, WIDTH, HEIGHT);
     cam.open();
 
@@ -169,14 +176,13 @@ int main(int, char**) {
                 ImGui::TreePop();
             }
 
-            if(ImGui::TreeNode("Video Feed")) {
-                const char* d_cameras[] = { "video0" };
-                static const char* d_camera_current = d_cameras[0];
-                if (ImGui::BeginCombo("Source", d_camera_current)) {
-                    for (int n = 0; n < IM_ARRAYSIZE(d_cameras); n++) {
-                        bool is_selected = (d_camera_current == d_cameras[n]);
-                        if (ImGui::Selectable(d_cameras[n], is_selected))
-                            d_camera_current = d_cameras[n];
+            if(ImGui::TreeNode("Video Feed") && camera_ids.size()>0) {
+                static int d_camera_current = 0;
+                if (ImGui::BeginCombo("Source", camera_names[d_camera_current].c_str())) {
+                    for (int i = 0; i < camera_ids.size(); i++) {
+                        bool is_selected = (d_camera_current == i);
+                        if (ImGui::Selectable(camera_names[i].c_str(), is_selected))
+                            d_camera_current = i;
                         if (is_selected)
                             ImGui::SetItemDefaultFocus();
                     }

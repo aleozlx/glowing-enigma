@@ -12,6 +12,7 @@ pkg_search_module(GLFW REQUIRED glfw3)
 
 # Computer Vision Packages
 find_package(OpenCV REQUIRED)
+# find_package(libusb-1.0 REQUIRED)
 
 # Machine Learning Packages
 find_package(TensorFlow)

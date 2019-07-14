@@ -1,6 +1,7 @@
 #ifndef __MISC_OCV_HPP__
 #define __MISC_OCV_HPP__
 #include <string>
+#include <vector>
 #include <opencv2/videoio.hpp>
 
 /// OpenCV Video I/O
@@ -27,9 +28,22 @@ struct Camera {
     }
 };
 
-std::string cv_type2str(int type) {
+namespace cv_misc {
+std::vector<int> camera_enumerate() {
+    std::vector<int> ret;
+    cv::VideoCapture cap;
+    for (int i = 0; i<4; i++) {
+        if(cap.open(i)) {
+            ret.push_back(i);
+            cap.release();
+        }
+    }
+    return ret;
+}
+
+std::string type2str(int type) {
     /*
-    std::string ty = cv_type2str(frame_rgb.type());
+    std::string ty = cv_misc::type2str(frame_rgb.type());
     ImGui::Text("type %s", ty.c_str());
     */
     std::string r;
@@ -48,5 +62,6 @@ std::string cv_type2str(int type) {
     r += "C";
     r += (chans+'0');
     return r;
+}
 }
 #endif
