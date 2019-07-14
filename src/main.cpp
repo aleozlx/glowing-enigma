@@ -178,14 +178,7 @@ int main(int, char**) {
 
 #ifdef HAS_LIBGSLIC // with gSLIC, it is not efficient to use different superpixel sizes over time
             static float d_superpixel_size = 32.0f;
-            ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
             ImGui::SliderFloat("Superpixel Size", &d_superpixel_size, 15.0f, 80.0f);
-            ImGui::PopStyleVar();
-            if (ImGui::IsItemHovered()) {
-                ImGui::BeginTooltip();
-                ImGui::Text("The gSLIC method will have a fixed superpixel size. Modify from the source code!");
-                ImGui::EndTooltip();
-            }
 #endif
             ImGui::Separator();
             if(ImGui::Button("Apply")) {
