@@ -29,6 +29,7 @@ void spotlight(cv::OutputArray _frame, cv::InputArray _sel, float alpha) {
     }
 }
 
+// TODO investigate ImGui::PlotHistogram
 struct RGBHistogram {
     float alpha;
     unsigned int width, height;
@@ -158,6 +159,43 @@ int main(int, char**) {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
         {
+            // **********************
+            // * Pipeline Settings window
+            // **********************
+            ImGui::Begin("Pipeline Settings");
+            const char* d_cameras[] = { "video0" };
+            static const char* d_camera_current = d_cameras[0];
+            if (ImGui::BeginCombo("Video Feed", d_camera_current)) {
+                for (int n = 0; n < IM_ARRAYSIZE(d_cameras); n++) {
+                    bool is_selected = (d_camera_current == d_cameras[n]);
+                    if (ImGui::Selectable(d_cameras[n], is_selected))
+                        d_camera_current = d_cameras[n];
+                    if (is_selected)
+                        ImGui::SetItemDefaultFocus();
+                }
+                ImGui::EndCombo();
+            }
+
+#ifdef HAS_LIBGSLIC // with gSLIC, it is not efficient to use different superpixel sizes over time
+            static float d_superpixel_size = 32.0f;
+            ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
+            ImGui::SliderFloat("Superpixel Size", &d_superpixel_size, 15.0f, 80.0f);
+            ImGui::PopStyleVar();
+            if (ImGui::IsItemHovered()) {
+                ImGui::BeginTooltip();
+                ImGui::Text("The gSLIC method will have a fixed superpixel size. Modify from the source code!");
+                ImGui::EndTooltip();
+            }
+#endif
+            ImGui::Separator();
+            if(ImGui::Button("Apply")) {
+                // TODO reinitialize pipeline or create a new analyzer window
+            }
+            ImGui::End();
+
+            // **********************
+            // * Superpixel Analyzer window
+            // **********************
             static int pointer_x = 0, pointer_y = 0;
             static unsigned int superpixel_id = 0;
             static bool use_spotlight = true;
@@ -168,11 +206,12 @@ int main(int, char**) {
 
             cam.capture >> frame;
             cv::cvtColor(frame, frame_rgb, cv::COLOR_BGR2RGB);
-            cv::medianBlur(frame, frame_hsv, 5);
-            cv::cvtColor(frame_hsv, frame_hsv, cv::COLOR_BGR2HSV);
 #ifdef HAS_LIBGSLIC
             ISuperpixel* superpixel = _superpixel.Compute(frame);
 #else
+            // TODO put this stuff in .Compute()
+            cv::medianBlur(frame, frame_hsv, 5);
+            cv::cvtColor(frame_hsv, frame_hsv, cv::COLOR_BGR2HSV);
             ISuperpixel* superpixel = _superpixel.Compute(frame_hsv);
 #endif
 
@@ -207,18 +246,8 @@ int main(int, char**) {
                     ImGui::EndTooltip();
                 }
             }
-#ifndef HAS_LIBGSLIC
-            ImGui::SliderFloat("Size", &_superpixel.superpixel_size, 15.0f, 80.0f);
-#else
-            float _superpixel_size = 32.0f;
-            ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
-            ImGui::SliderFloat("Size", &_superpixel_size, 15.0f, 80.0f);
-            ImGui::PopStyleVar();
-            if (ImGui::IsItemHovered()) {
-                ImGui::BeginTooltip();
-                ImGui::Text("The gSLIC method will have a fixed superpixel size. Modify from the source code!");
-                ImGui::EndTooltip();
-            }
+#ifndef HAS_LIBGSLIC // with OpenCV SLIC, it is possible to use different superpixel sizes over time
+            ImGui::SliderFloat("Superpixel Size", &_superpixel.superpixel_size, 15.0f, 80.0f);
 #endif
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
             ImGui::Checkbox("Spotlight", &use_spotlight); ImGui::SameLine(120);
