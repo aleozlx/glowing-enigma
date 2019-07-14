@@ -126,7 +126,7 @@ int main(int, char**) {
     Camera cam(0, WIDTH, HEIGHT);
     cam.open();
 
-    cv::Mat frame, frame_rgb, frame_hsv;
+    cv::Mat frame, frame_rgb;
     cv::Mat superpixel_contour, superpixel_labels, superpixel_selected;
     cv::Scalar sel_mean, sel_std;
     cam.capture >> frame;
@@ -135,7 +135,6 @@ int main(int, char**) {
     TexImage imSuperpixels(width, height, channels);
     TexImage imHistogram(width, height, channels);
     cv::Mat histogram, histogram_rgb;
-
 #ifdef HAS_LIBGSLIC
     GSLIC _superpixel({
         .img_size = { width, height },
@@ -202,10 +201,7 @@ int main(int, char**) {
 #ifdef HAS_LIBGSLIC
             ISuperpixel* superpixel = _superpixel.Compute(frame);
 #else
-            // TODO put this stuff in .Compute()
-            cv::medianBlur(frame, frame_hsv, 5);
-            cv::cvtColor(frame_hsv, frame_hsv, cv::COLOR_BGR2HSV);
-            ISuperpixel* superpixel = _superpixel.Compute(frame_hsv);
+            ISuperpixel* superpixel = _superpixel.Compute(frame);
 #endif
 
             superpixel->GetContour(superpixel_contour);

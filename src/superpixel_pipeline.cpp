@@ -1,8 +1,10 @@
 #include "superpixel_pipeline.hpp"
 
 ISuperpixel* OpenCVSLIC::Compute(cv::InputArray frame) {
+    cv::medianBlur(frame, frame_hsv, 5);
+    cv::cvtColor(frame_hsv, frame_hsv, cv::COLOR_BGR2HSV);
     segmentation = cv::ximgproc::createSuperpixelSLIC(
-        frame, cv::ximgproc::SLIC+1, (int)superpixel_size, ruler);
+        frame_hsv, cv::ximgproc::SLIC+1, (int)superpixel_size, ruler);
     segmentation->iterate(num_iter);
     segmentation->enforceLabelConnectivity(min_size);
     return dynamic_cast<ISuperpixel*>(this);

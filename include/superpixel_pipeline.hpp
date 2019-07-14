@@ -1,6 +1,7 @@
 #ifndef __SUPERPIXEL_PIPELINE_HPP__
 #define __SUPERPIXEL_PIPELINE_HPP__
 #include <opencv2/core/utility.hpp>
+#include <opencv2/imgproc.hpp>
 #include <opencv2/ximgproc.hpp>
 
 class ISuperpixel {
@@ -22,6 +23,9 @@ class OpenCVSLIC: public ISuperpixel {
     unsigned int num_iter;
     float superpixel_size, min_size, ruler;
     cv::Ptr<cv::ximgproc::SuperpixelSLIC> segmentation;
+
+    protected:
+    cv::Mat frame_hsv;
 };
 
 #ifdef HAS_LIBGSLIC
