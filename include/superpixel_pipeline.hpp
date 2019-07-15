@@ -10,6 +10,7 @@ class ISuperpixel {
     virtual void GetContour(cv::OutputArray output) = 0;
     virtual void GetLabels(cv::OutputArray output) = 0;
     virtual unsigned int GetNumSuperpixels() = 0;
+    virtual ~ISuperpixel() {}
 };
 
 class OpenCVSLIC: public ISuperpixel {

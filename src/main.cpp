@@ -120,7 +120,8 @@ const unsigned int HEIGHT = 240;
 class IWindow {
     public:
     virtual IWindow* Show() = 0;
-    virtual void Draw() = 0;
+    virtual bool Draw() = 0;
+    virtual ~IWindow() {}
 
     static std::string uuid(const int len) {
         static const char alphanum[] =
@@ -143,12 +144,14 @@ class TestWindow: public IWindow {
         this->_is_shown = show;
     }
 
-    void Draw() override {
+    bool Draw() override {
+        if (!this->_is_shown) return false;
         ImGui::Begin(this->_title, &this->_is_shown);
         ImGui::Text("Hello from another window!");
         if (ImGui::Button("Close Me"))
             this->_is_shown = false;
         ImGui::End();
+        return true;
     }
 
     IWindow* Show() override {
@@ -247,29 +250,8 @@ int main(int, char**) {
 #endif
             ImGui::Separator();
 
-            // static bool show_test_window = false;
-            if(ImGui::Button("Initialize")) {
-                // TODO reinitialize pipeline or create a new analyzer window
-                // show_test_window = true;
-                std::cout<<"new Test Window"<<std::endl;
-                std::unique_ptr<TestWindow> w = std::make_unique<TestWindow>();
-                w->Show();
-                windows.push_back(std::move(w));
-                std::cout<<windows.size()<<std::endl;
-            }
-
-            for (auto const &w: windows) {
-                w->Draw();
-            }
-            
-            // if (show_test_window)
-            // {
-            //     ImGui::Begin("Another Window", &show_test_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-            //     ImGui::Text("Hello from another window!");
-            //     if (ImGui::Button("Close Me"))
-            //         show_test_window = false;
-            //     ImGui::End();
-            // }
+            if(ImGui::Button("Initialize"))
+                windows.push_back(std::make_unique<TestWindow>(true));
             ImGui::End();
 
             // **********************
@@ -343,6 +325,14 @@ int main(int, char**) {
                 ImGui::TreePop();
             }
             ImGui::End();
+
+            // **********************
+            // * Other dynamic windows
+            // **********************
+            for (std::list<std::unique_ptr<IWindow>>::iterator w = windows.begin(); w != windows.end();) {
+                if (!(*w)->Draw()) windows.erase(w++);
+                else ++w;
+            }
         }
         app.Render(clear_color);
     }
