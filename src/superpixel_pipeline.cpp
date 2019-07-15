@@ -1,8 +1,10 @@
 #include "superpixel_pipeline.hpp"
 
 ISuperpixel* OpenCVSLIC::Compute(cv::InputArray frame) {
+    cv::medianBlur(frame, frame_hsv, 5);
+    cv::cvtColor(frame_hsv, frame_hsv, cv::COLOR_BGR2HSV);
     segmentation = cv::ximgproc::createSuperpixelSLIC(
-        frame, cv::ximgproc::SLIC+1, (int)superpixel_size, ruler);
+        frame_hsv, cv::ximgproc::SLIC+1, (int)superpixel_size, ruler);
     segmentation->iterate(num_iter);
     segmentation->enforceLabelConnectivity(min_size);
     return dynamic_cast<ISuperpixel*>(this);
@@ -28,10 +30,16 @@ unsigned int OpenCVSLIC::GetNumSuperpixels() {
 }
 
 #ifdef HAS_LIBGSLIC
+GSLIC::GSLIC(): 
+    in_img(nullptr),
+    gSLICr_engine(nullptr)
+{
+
+}
+
 GSLIC::GSLIC(gSLICr::objects::settings settings):
-    in_img(settings.img_size, true, true),
-    // out_img(settings.img_size, true, true),
-    gSLICr_engine(settings)
+    in_img(std::make_unique<gSLICr::UChar4Image>(settings.img_size, true, true)),
+    gSLICr_engine(std::make_unique<gSLICr::engines::core_engine>(settings))
 {
     this->width = settings.img_size.x;
     this->height = settings.img_size.y;
@@ -40,8 +48,8 @@ GSLIC::GSLIC(gSLICr::objects::settings settings):
 ISuperpixel* GSLIC::Compute(cv::InputArray _frame) {
     cv::Mat frame = _frame.getMat();
     CV_Assert(frame.cols == (int)width && frame.rows == (int)height);
-    copy_image(frame, &in_img);
-    gSLICr_engine.Process_Frame(&in_img);
+    copy_image(frame, in_img.get());
+    gSLICr_engine->Process_Frame(in_img.get());
     return dynamic_cast<ISuperpixel*>(this);
 }
 
@@ -50,7 +58,7 @@ void GSLIC::GetContour(cv::OutputArray output) {
     outmat.create(cv::Size(width, height), CV_8UC1);
     gSLICr::MaskImage out_img({(int)width, (int)height}, false, true);
     out_img.use_data_cpu(outmat.data);
-    gSLICr_engine.Draw_Boundary_Mask(&out_img);
+    gSLICr_engine->Draw_Boundary_Mask(&out_img);
     out_img.force_download();
     // copy_image(&out_img, outmat); // saved a copy by having OpenCV own data.
     output.assign(outmat);
@@ -59,7 +67,7 @@ void GSLIC::GetContour(cv::OutputArray output) {
 void GSLIC::GetLabels(cv::OutputArray output) {
     cv::Mat outmat;
     outmat.create(cv::Size(width, height), CV_32SC1);
-    const gSLICr::IntImage *segmentation = gSLICr_engine.Get_Seg_Res();
+    const gSLICr::IntImage *segmentation = gSLICr_engine->Get_Seg_Res();
     copy_image_c1(segmentation, outmat);
     output.assign(outmat);
     if (actual_num_superpixels==0) { // compute num of superpixels while we are at it
@@ -71,7 +79,7 @@ void GSLIC::GetLabels(cv::OutputArray output) {
 
 unsigned int GSLIC::GetNumSuperpixels() {
     if (actual_num_superpixels==0) {
-        const gSLICr::IntImage *segmentation = gSLICr_engine.Get_Seg_Res();
+        const gSLICr::IntImage *segmentation = gSLICr_engine->Get_Seg_Res();
         // a quick & dirty way to get max
         actual_num_superpixels = static_cast<unsigned int>(max_c1(segmentation)) + 1;
     }

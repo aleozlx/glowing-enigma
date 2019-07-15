@@ -55,7 +55,9 @@ int main(int, char**) {
             cam.capture >> frame;
             ISuperpixel* superpixel = _superpixel.Compute(frame);
             superpixel->GetContour(superpixel_contour);
-            imSuperpixels.Load(superpixel_contour.data);
+            cv::cvtColor(frame, frame, cv::COLOR_BGR2RGB);
+            frame.setTo(cv::Scalar(200, 5, 240), superpixel_contour);
+            imSuperpixels.Load(frame.data);
             ImGui::Image(imSuperpixels.id(), imSuperpixels.size(), ImVec2(0,0), ImVec2(1,1), ImVec4(1.0f,1.0f,1.0f,1.0f), ImVec4(1.0f,1.0f,1.0f,0.5f));
             ImGui::End();
         }

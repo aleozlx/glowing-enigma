@@ -12,6 +12,7 @@ pkg_search_module(GLFW REQUIRED glfw3)
 
 # Computer Vision Packages
 find_package(OpenCV REQUIRED)
+# find_package(libusb-1.0 REQUIRED)
 
 # Machine Learning Packages
 find_package(TensorFlow)
@@ -19,6 +20,15 @@ find_package(CUDA 10)
 
 # More Packages
 find_package(Boost)
+
+# Feature definitions
+add_definitions("-DVER_OPENCV=${OpenCV_VERSION}")
+if(CUDA_FOUND)
+    add_definitions("-DHAS_CUDA=${CUDA_VERSION_STRING}")
+endif()
+if(TENSORFLOW_FOUND)
+    add_definitions("-DHAS_TF=${TensorFlow_VERSION}")
+endif()
 
 # ImGui Library
 set(root ${CMAKE_CURRENT_SOURCE_DIR}/imgui)
@@ -81,6 +91,11 @@ target_compile_definitions(superpixel_analyzer PUBLIC IMGUI_IMPL_OPENGL_LOADER_G
 if(CUDA_FOUND)
     target_compile_definitions(superpixel_analyzer PUBLIC HAS_LIBGSLIC)
     target_link_libraries(superpixel_analyzer gSLICr)
+endif()
+if(TENSORFLOW_FOUND)
+    target_include_directories(superpixel_analyzer PUBLIC ${TensorFlow_INCLUDE_DIR})
+    target_link_libraries(superpixel_analyzer -Wl,--allow-multiple-definition -Wl,--whole-archive ${TensorFlow_C_LIBRARY} -Wl,--no-whole-archive)
+    target_link_libraries(superpixel_analyzer -Wl,--allow-multiple-definition -Wl,--whole-archive ${TensorFlow_LIBRARY} -Wl,--no-whole-archive)
 endif()
 target_include_directories(superpixel_analyzer PUBLIC ${root}/examples)
 target_link_libraries(superpixel_analyzer imgui ${SOIL_LIBRARY} ${GLFW_LIBRARIES} ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES}

@@ -118,7 +118,7 @@ int main(int, char**)
             int width, height, channels;
 
             // Loads the image and gets its width, height and the number of channels
-            unsigned char *data = SOIL_load_image("../fixtures/test.png", &width, &height, &channels, SOIL_LOAD_AUTO);
+            unsigned char *data = SOIL_load_image("fixtures/test.png", &width, &height, &channels, SOIL_LOAD_AUTO);
 
             // Generates a texture from the data you've just loaded
             GLuint my_tex = SOIL_create_OGL_texture(
