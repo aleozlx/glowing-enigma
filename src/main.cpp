@@ -123,18 +123,15 @@ struct RGBHistogram {
 
 struct DCNNInference {
     void Compute() {
-        // tf::Session* session;
-        // tf::Status status = tf::ClientSession(tf::SessionOptions(), &session);
-        // if (!status.ok()) {
-        //     std::cout << status.ToString() << "\n";
-        //     return;
-        // }
-        tf::SessionOptions options;
         tf::Session *session;
-        tf::NewSession(options, &session);
+        tf::Status status = tf::NewSession(tf::SessionOptions(), &session);
+        if (!status.ok()) {
+            std::cout << status.ToString() << "\n";
+            return;
+        }
         
         tf::GraphDef graph_def;
-        tf::Status status = tf::ReadBinaryProto(tf::Env::Default(), "fixtures/test.pb", &graph_def);
+        status = tf::ReadBinaryProto(tf::Env::Default(), "fixtures/test.pb", &graph_def);
         if (!status.ok()) {
             std::cout << status.ToString() << "\n";
             return;
@@ -147,10 +144,6 @@ struct DCNNInference {
             return;
         }
 
-        // Setup inputs and outputs:
-
-        // Our graph doesn't require any inputs, since it specifies default values,
-        // but we'll change an input to demonstrate.
         tf::Tensor a(tf::DT_FLOAT, tf::TensorShape());
         a.scalar<float>()() = 3.0;
 
