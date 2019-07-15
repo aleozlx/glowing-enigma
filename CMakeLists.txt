@@ -92,6 +92,10 @@ if(CUDA_FOUND)
     target_compile_definitions(superpixel_analyzer PUBLIC HAS_LIBGSLIC)
     target_link_libraries(superpixel_analyzer gSLICr)
 endif()
+if(TENSORFLOW_FOUND)
+    target_include_directories(superpixel_analyzer PUBLIC ${TensorFlow_INCLUDE_DIR})
+    target_link_libraries(superpixel_analyzer ${TensorFlow_LIBRARY})
+endif()
 target_include_directories(superpixel_analyzer PUBLIC ${root}/examples)
 target_link_libraries(superpixel_analyzer imgui ${SOIL_LIBRARY} ${GLFW_LIBRARIES} ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES}
     opencv_core
