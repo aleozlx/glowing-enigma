@@ -164,6 +164,32 @@ class TestWindow: public IWindow {
     char _title[32];
 };
 
+class SuperpixelAnalyzerWindow: public IWindow {
+    public:
+    SuperpixelAnalyzerWindow(bool show = false) {
+        std::string id = IWindow::uuid(5);
+        std::snprintf(_title, IM_ARRAYSIZE(_title), "Superpixel Analyzer [%s]", id.c_str());
+        this->_is_shown = show;
+    }
+
+    IWindow* Show() override {
+        this->_is_shown = true;
+        return dynamic_cast<IWindow*>(this);
+    }
+
+    bool Draw() override {
+        if (!this->_is_shown) return false;
+        ImGui::Begin(this->_title, &this->_is_shown);
+
+        ImGui::End();
+        return true;
+    }
+
+    protected:
+    bool _is_shown = false;
+    char _title[32];
+};
+
 int main(int, char**) {
     App app = App::Initialize();
     if (!app.ok) return 1;
