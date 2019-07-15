@@ -1,7 +1,8 @@
 #include <iostream>
 #include <string>
 #include <vector>
-#include <tuple>
+#include <list>
+#include <cstdlib>
 
 #include <opencv2/imgproc.hpp>
 #include <opencv2/videoio.hpp>
@@ -116,6 +117,50 @@ struct RGBHistogram {
 const unsigned int WIDTH = 432;
 const unsigned int HEIGHT = 240;
 
+class IWindow {
+    public:
+    virtual IWindow* Show() = 0;
+    virtual void Draw() = 0;
+
+    static std::string uuid(const int len) {
+        static const char alphanum[] =
+            "0123456789"
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            "abcdefghijklmnopqrstuvwxyz";
+        char buf[len+1];
+        buf[len] = '\0';
+        for (int i = 0; i < len; ++i)
+            buf[i] = alphanum[rand() % (sizeof(alphanum) - 1)];
+        return std::string(buf);
+    }
+};
+
+class TestWindow: public IWindow {
+    public:
+    TestWindow(bool show = false) {
+        std::string id = IWindow::uuid(5);
+        std::snprintf(_title, IM_ARRAYSIZE(_title), "Test Window [%s]", id.c_str());
+        this->_is_shown = show;
+    }
+
+    void Draw() override {
+        ImGui::Begin(this->_title, &this->_is_shown);
+        ImGui::Text("Hello from another window!");
+        if (ImGui::Button("Close Me"))
+            this->_is_shown = false;
+        ImGui::End();
+    }
+
+    IWindow* Show() override {
+        this->_is_shown = true;
+        return dynamic_cast<IWindow*>(this);
+    }
+
+    protected:
+    bool _is_shown = false;
+    char _title[32];
+};
+
 int main(int, char**) {
     App app = App::Initialize();
     if (!app.ok) return 1;
@@ -156,6 +201,8 @@ int main(int, char**) {
 #else
     OpenCVSLIC _superpixel(32, 30.0f, 3, 10.0f);
 #endif
+
+    std::list<std::unique_ptr<IWindow>> windows;
 
     // Main loop
     while (!glfwWindowShouldClose(window)){
@@ -199,9 +246,30 @@ int main(int, char**) {
             }
 #endif
             ImGui::Separator();
+
+            // static bool show_test_window = false;
             if(ImGui::Button("Initialize")) {
                 // TODO reinitialize pipeline or create a new analyzer window
+                // show_test_window = true;
+                std::cout<<"new Test Window"<<std::endl;
+                std::unique_ptr<TestWindow> w = std::make_unique<TestWindow>();
+                w->Show();
+                windows.push_back(std::move(w));
+                std::cout<<windows.size()<<std::endl;
             }
+
+            for (auto const &w: windows) {
+                w->Draw();
+            }
+            
+            // if (show_test_window)
+            // {
+            //     ImGui::Begin("Another Window", &show_test_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
+            //     ImGui::Text("Hello from another window!");
+            //     if (ImGui::Button("Close Me"))
+            //         show_test_window = false;
+            //     ImGui::End();
+            // }
             ImGui::End();
 
             // **********************
