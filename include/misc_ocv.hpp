@@ -31,6 +31,15 @@ struct Camera {
 struct CameraInfo {
     std::string name;
     int id;
+    bool isOpened;
+
+    bool Acquire() {
+        return isOpened == false ? (isOpened = true) : false;
+    }
+
+    void Release() {
+        isOpened = false;
+    }
 };
 
 namespace cv_misc {
@@ -40,6 +49,20 @@ std::vector<int> camera_enumerate() {
     for (int i = 0; i<4; i++) {
         if(cap.open(i)) {
             ret.push_back(i);
+            cap.release();
+        }
+    }
+    return ret;
+}
+
+std::vector<CameraInfo> camera_enumerate2() {
+    std::vector<CameraInfo> ret;
+    cv::VideoCapture cap;
+    for (int i = 0; i<4; i++) {
+        if(cap.open(i)) {
+            char camera_name[20];
+            std::snprintf(camera_name, IM_ARRAYSIZE(camera_name), "/dev/video%d", i);
+            ret.push_back({ .name = std::string(camera_name), .id = i, .isOpened = false });
             cap.release();
         }
     }

@@ -166,19 +166,28 @@ class TestWindow: public IWindow {
 
 class SuperpixelAnalyzerWindow: public IWindow {
     public:
-    SuperpixelAnalyzerWindow(int frame_width, int frame_height, unsigned int capture_id):
+    SuperpixelAnalyzerWindow(int frame_width, int frame_height, CameraInfo *_camera_info):
         io(ImGui::GetIO()),
         width(frame_width),
         height(frame_height),
-        cam(capture_id, frame_width, frame_height)
+        _camera_info(_camera_info),
+        cam(_camera_info->id, frame_width, frame_height)
     {
         std::string id = IWindow::uuid(5);
         std::snprintf(_title, IM_ARRAYSIZE(_title), "Superpixel Analyzer [%s]", id.c_str());
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
     }
 
+    ~SuperpixelAnalyzerWindow() {
+        _camera_info->Release();
+    }
+
     IWindow* Show() override {
-        cam.open();
+        if (!cam.open()) {
+            // Cannot receive video feed
+            this->_is_shown = false;
+            return nullptr;
+        }
         cam.capture >> frame;
         frame_size = frame.size();
         width = frame_size.width;
@@ -262,7 +271,7 @@ class SuperpixelAnalyzerWindow: public IWindow {
             ImGui::TreePop();
         }
 
-        if (ImGui::TreeNode("Superpixel Features")) {
+        if (ImGui::TreeNode("Superpixel DCNN Features")) {
             ImGui::Text("Test.");
             ImGui::TreePop();
         }
@@ -273,6 +282,7 @@ class SuperpixelAnalyzerWindow: public IWindow {
     protected:
     ImGuiIO& io;
     int width, height, channels;
+    CameraInfo *_camera_info;
     Camera cam;
     TexImage imSuperpixels;
     TexImage imHistogram;
@@ -303,16 +313,9 @@ int main(int, char**) {
     App app = App::Initialize();
     if (!app.ok) return 1;
     GLFWwindow* window = app.window;
-    // ImGuiIO& io = ImGui::GetIO(); (void)io;
-    // io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
-    std::vector<CameraInfo> cameras;
-    for (auto const v: cv_misc::camera_enumerate()) {
-        char camera_name[20];
-        std::snprintf(camera_name, IM_ARRAYSIZE(camera_name), "/dev/video%d", v);
-        cameras.push_back({ .name = std::string(camera_name), .id = v });
-    }
+    std::vector<CameraInfo> cameras = cv_misc::camera_enumerate2();
 
     // Main loop
     while (!glfwWindowShouldClose(window)){
@@ -332,10 +335,10 @@ int main(int, char**) {
                 ImGui::TreePop();
             }
 
+            static CameraInfo *d_camera_current = &cameras[0];
             if(ImGui::TreeNode("Video Feed") && cameras.size()>0) {
-                static const CameraInfo *d_camera_current = &cameras[0];
                 if (ImGui::BeginCombo("Source", d_camera_current->name.c_str())) {
-                    for (auto const &camera_info: cameras) {
+                    for (auto &camera_info: cameras) {
                         bool is_selected = (d_camera_current == &camera_info);
                         if (ImGui::Selectable(camera_info.name.c_str(), is_selected))
                             d_camera_current = &camera_info;
@@ -357,9 +360,11 @@ int main(int, char**) {
             ImGui::Separator();
 
             if(ImGui::Button("Initialize")) {
-                auto w = std::make_unique<SuperpixelAnalyzerWindow>(WIDTH, HEIGHT, 0);
-                w->Show();
-                windows.push_back(std::move(w));
+                if (d_camera_current->Acquire()) {
+                    auto w = std::make_unique<SuperpixelAnalyzerWindow>(WIDTH, HEIGHT, d_camera_current);
+                    if (w->Show() != nullptr)
+                        windows.push_back(std::move(w));
+                }
             }
             ImGui::End();
 
