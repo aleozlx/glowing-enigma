@@ -123,14 +123,18 @@ struct RGBHistogram {
 
 struct DCNNInference {
     void Compute() {
-        tf::Session* session;
-        tf::Status status = tf::NewSession(tf::SessionOptions(), &session);
-        if (!status.ok()) {
-            std::cout << status.ToString() << "\n";
-            return;
-        }
+        // tf::Session* session;
+        // tf::Status status = tf::ClientSession(tf::SessionOptions(), &session);
+        // if (!status.ok()) {
+        //     std::cout << status.ToString() << "\n";
+        //     return;
+        // }
+        tf::SessionOptions options;
+        tf::Session *session;
+        tf::NewSession(options, &session);
+        
         tf::GraphDef graph_def;
-        status = tf::ReadBinaryProto(tf::Env::Default(), "models/graph.pb", &graph_def);
+        tf::Status status = tf::ReadBinaryProto(tf::Env::Default(), "fixtures/test.pb", &graph_def);
         if (!status.ok()) {
             std::cout << status.ToString() << "\n";
             return;
