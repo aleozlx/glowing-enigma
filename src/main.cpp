@@ -121,24 +121,29 @@ struct RGBHistogram {
     }
 };
 
-struct DCNNInference {
-    void Compute() {
-        tf::Session *session;
-        tf::Status status = tf::NewSession(tf::SessionOptions(), &session);
-        if (!status.ok()) {
-            std::cerr << status.ToString() << "\n";
-            return;
-        }
-        
-        tf::GraphDef graph_def;
-        status = tf::ReadBinaryProto(tf::Env::Default(), "/tank/datasets/research/model_weights/vgg16.pb", &graph_def);
-        if (!status.ok()) {
-            std::cerr << status.ToString() << "\n";
-            return;
-        }
+class DCNNInference {
+    public:
+    tf::GraphDef graph;
+    tf::Session *session = nullptr;
 
-        for (int i = 0; i < graph_def.node_size(); i++) {
-            auto const &node = graph_def.node(i);
+    DCNNInference(std::string const &graph_path) {
+        tf::Status status = tf::ReadBinaryProto(tf::Env::Default(), graph_path, &graph);
+        this->_loaded = status.ok();
+    }
+
+    virtual ~DCNNInference() {
+        if (session)
+            session->Close();
+    }
+
+    bool NewSession() {
+        if (!_loaded) return false;
+        tf::Status status = tf::NewSession(tf::SessionOptions(), &session);
+        if (!status.ok()) return false;
+
+        // print a summary of the loaded graph
+        for (int i = 0; i < graph.node_size(); i++) {
+            auto const &node = graph.node(i);
             auto const &attr_map = node.attr();
             std::vector<int64_t> tensor_shape;
             auto const &shape_attr = attr_map.find("shape");
@@ -156,29 +161,23 @@ struct DCNNInference {
                 if (dtype_attr != attr_map.end()) {
                     std::cout << tf::DataTypeString(dtype_attr->second.type()) << ' ';
                 }
-                std::cout << graph_def.node(i).name() << " ]" << std::endl;
-            }
-            // for (auto it=attr_map.begin(); it != attr_map.end(); it++) {
-            //     auto const &key = it->first;
-            //     auto const &value = it->second;
-            //     if (key == "shape") {
-            //     // if (value.has_shape()) {
-            //         auto const &shape = value.shape();
-            //         for (int i=0; i<shape.dim_size(); ++i) {
-            //             auto const &dim = shape.dim(i);
-            //             auto const &dim_size = dim.size();
-            //             tensor_shape.push_back(dim_size);
-            //         }
-            //     }
-            // }
-            
+                std::cout << graph.node(i).name() << " ]" << std::endl;
+            }           
         }
 
-        status = session->Create(graph_def);
-        if (!status.ok()) {
-            std::cerr << status.ToString() << "\n";
-            return;
-        }
+        status = session->Create(graph);
+        return status.ok();
+    }
+
+    virtual void Compute() = 0;
+
+    // void Compute() {
+        // tf::GraphDef graph_def;
+        // // status = tf::ReadBinaryProto(tf::Env::Default(), "/tank/datasets/research/model_weights/vgg16.frozen.pb", &graph_def);
+        // if (!status.ok()) {
+        //     std::cerr << status.ToString() << "\n";
+        //     return;
+        // }
 
         // tf::Tensor a(tf::DT_FLOAT, tf::TensorShape());
         // a.scalar<float>()() = 3.0;
@@ -211,9 +210,19 @@ struct DCNNInference {
         // // Print the results
         // std::cout << outputs[0].DebugString() << "\n"; // Tensor<type: float shape: [] values: 30>
         // std::cout << output_c() << "\n"; // 30
+    // }
 
-        // Free any resources used by the session
-        session->Close();
+    protected:
+    bool _loaded;
+};
+
+class VGG16: public DCNNInference {
+    public:
+    VGG16(): DCNNInference("/tank/datasets/research/model_weights/vgg16.frozen.pb") {
+
+    }
+
+    void Compute() override {
 
     }
 };
@@ -478,8 +487,8 @@ int main(int, char**) {
     cameras = cv_misc::camera_enumerate2();
     windows.push_back(std::make_unique<PipelineSettingsWindow>());
 
-    DCNNInference  dcnn;
-    dcnn.Compute();
+    VGG16 dcnn;
+    dcnn.NewSession();
 
     while (!glfwWindowShouldClose(window)){
         glfwPollEvents();
