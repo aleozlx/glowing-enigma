@@ -307,74 +307,80 @@ class SuperpixelAnalyzerWindow: public IWindow {
     cv::Size frame_size;
 };
 
+class IStaticWindow: public IWindow {
+    public:
+    virtual IWindow* Show() override {
+        return dynamic_cast<IWindow*>(this);
+    }
+    virtual ~IStaticWindow() {}
+};
+
+std::vector<CameraInfo> cameras;
 std::list<std::unique_ptr<IWindow>> windows;
+
+class PipelineSettingsWindow: public IStaticWindow {
+    public:
+    bool Draw() override {
+        ImGui::Begin("Pipeline Settings");
+        if(ImGui::TreeNode("Enabled Features")) {
+            #define FEATURE(FEATURE_MACRO) ImGui::Text("-D " #FEATURE_MACRO)
+            #define FEATURE_VER(FEATURE_MACRO) ImGui::Text("-D " #FEATURE_MACRO " %s", VERSTR(FEATURE_MACRO))
+            #include "features.hpp"
+            ImGui::TreePop();
+        }
+
+        static CameraInfo *d_camera_current = &cameras[0];
+        if(ImGui::TreeNode("Video Feed") && cameras.size()>0) {
+            if (ImGui::BeginCombo("Source", d_camera_current->name.c_str())) {
+                for (auto &camera_info: cameras) {
+                    bool is_selected = (d_camera_current == &camera_info);
+                    if (ImGui::Selectable(camera_info.name.c_str(), is_selected))
+                        d_camera_current = &camera_info;
+                    if (is_selected)
+                        ImGui::SetItemDefaultFocus();
+                }
+                ImGui::EndCombo();
+            }
+            ImGui::TreePop();
+        }
+
+#ifdef HAS_LIBGSLIC // with gSLIC, it is not efficient to use different superpixel sizes over time
+        if(ImGui::TreeNode("Superpixels")) {
+            static float d_superpixel_size = 32.0f;
+            ImGui::SliderFloat("Superpixel Size", &d_superpixel_size, 15.0f, 80.0f);
+            ImGui::TreePop();
+        }
+#endif
+        ImGui::Separator();
+
+        if(ImGui::Button("Initialize")) {
+            if (d_camera_current->Acquire()) {
+                auto w = std::make_unique<SuperpixelAnalyzerWindow>(WIDTH, HEIGHT, d_camera_current);
+                if (w->Show() != nullptr)
+                    windows.push_back(std::move(w));
+            }
+        }
+        ImGui::End();
+        return true;
+    }
+};
+
 
 int main(int, char**) {
     App app = App::Initialize();
     if (!app.ok) return 1;
     GLFWwindow* window = app.window;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-
-    std::vector<CameraInfo> cameras = cv_misc::camera_enumerate2();
-
-    // Main loop
+    cameras = cv_misc::camera_enumerate2();
+    windows.push_back(std::make_unique<PipelineSettingsWindow>());
     while (!glfwWindowShouldClose(window)){
         glfwPollEvents();
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
-        {
-            // **********************
-            // * Pipeline Settings window
-            // **********************
-            ImGui::Begin("Pipeline Settings");
-            if(ImGui::TreeNode("Enabled Features")) {
-                #define FEATURE(FEATURE_MACRO) ImGui::Text("-D " #FEATURE_MACRO)
-                #define FEATURE_VER(FEATURE_MACRO) ImGui::Text("-D " #FEATURE_MACRO " %s", VERSTR(FEATURE_MACRO))
-                #include "features.hpp"
-                ImGui::TreePop();
-            }
-
-            static CameraInfo *d_camera_current = &cameras[0];
-            if(ImGui::TreeNode("Video Feed") && cameras.size()>0) {
-                if (ImGui::BeginCombo("Source", d_camera_current->name.c_str())) {
-                    for (auto &camera_info: cameras) {
-                        bool is_selected = (d_camera_current == &camera_info);
-                        if (ImGui::Selectable(camera_info.name.c_str(), is_selected))
-                            d_camera_current = &camera_info;
-                        if (is_selected)
-                            ImGui::SetItemDefaultFocus();
-                    }
-                    ImGui::EndCombo();
-                }
-                ImGui::TreePop();
-            }
-
-#ifdef HAS_LIBGSLIC // with gSLIC, it is not efficient to use different superpixel sizes over time
-            if(ImGui::TreeNode("Superpixels")) {
-                static float d_superpixel_size = 32.0f;
-                ImGui::SliderFloat("Superpixel Size", &d_superpixel_size, 15.0f, 80.0f);
-                ImGui::TreePop();
-            }
-#endif
-            ImGui::Separator();
-
-            if(ImGui::Button("Initialize")) {
-                if (d_camera_current->Acquire()) {
-                    auto w = std::make_unique<SuperpixelAnalyzerWindow>(WIDTH, HEIGHT, d_camera_current);
-                    if (w->Show() != nullptr)
-                        windows.push_back(std::move(w));
-                }
-            }
-            ImGui::End();
-
-            // **********************
-            // * Other dynamic windows
-            // **********************
-            for (std::list<std::unique_ptr<IWindow>>::iterator w = windows.begin(); w != windows.end();) {
-                if (!(*w)->Draw()) windows.erase(w++);
-                else ++w;
-            }
+        for (std::list<std::unique_ptr<IWindow>>::iterator w = windows.begin(); w != windows.end();) {
+            if (!(*w)->Draw()) windows.erase(w++);
+            else ++w;
         }
         app.Render(clear_color);
     }
