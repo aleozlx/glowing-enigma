@@ -126,55 +126,91 @@ struct DCNNInference {
         tf::Session *session;
         tf::Status status = tf::NewSession(tf::SessionOptions(), &session);
         if (!status.ok()) {
-            std::cout << status.ToString() << "\n";
+            std::cerr << status.ToString() << "\n";
             return;
         }
         
         tf::GraphDef graph_def;
-        status = tf::ReadBinaryProto(tf::Env::Default(), "fixtures/test.pb", &graph_def);
+        status = tf::ReadBinaryProto(tf::Env::Default(), "/tank/datasets/research/model_weights/vgg16.pb", &graph_def);
         if (!status.ok()) {
-            std::cout << status.ToString() << "\n";
+            std::cerr << status.ToString() << "\n";
             return;
         }
 
-        // Add the graph to the session
+        for (int i = 0; i < graph_def.node_size(); i++) {
+            auto const &node = graph_def.node(i);
+            auto const &attr_map = node.attr();
+            std::vector<int64_t> tensor_shape;
+            auto const &shape_attr = attr_map.find("shape");
+            if (shape_attr != attr_map.end()) {
+                auto const &value = shape_attr->second;
+                auto const &shape = value.shape();
+                for (int i=0; i<shape.dim_size(); ++i) {
+                    auto const &dim = shape.dim(i);
+                    auto const &dim_size = dim.size();
+                    tensor_shape.push_back(dim_size);
+                }
+                std::cout << "[ ";
+                std::copy(tensor_shape.begin(), tensor_shape.end(), std::ostream_iterator<int>(std::cout, " "));
+                auto const &dtype_attr = attr_map.find("dtype");
+                if (dtype_attr != attr_map.end()) {
+                    std::cout << tf::DataTypeString(dtype_attr->second.type()) << ' ';
+                }
+                std::cout << graph_def.node(i).name() << " ]" << std::endl;
+            }
+            // for (auto it=attr_map.begin(); it != attr_map.end(); it++) {
+            //     auto const &key = it->first;
+            //     auto const &value = it->second;
+            //     if (key == "shape") {
+            //     // if (value.has_shape()) {
+            //         auto const &shape = value.shape();
+            //         for (int i=0; i<shape.dim_size(); ++i) {
+            //             auto const &dim = shape.dim(i);
+            //             auto const &dim_size = dim.size();
+            //             tensor_shape.push_back(dim_size);
+            //         }
+            //     }
+            // }
+            
+        }
+
         status = session->Create(graph_def);
         if (!status.ok()) {
-            std::cout << status.ToString() << "\n";
+            std::cerr << status.ToString() << "\n";
             return;
         }
 
-        tf::Tensor a(tf::DT_FLOAT, tf::TensorShape());
-        a.scalar<float>()() = 3.0;
+        // tf::Tensor a(tf::DT_FLOAT, tf::TensorShape());
+        // a.scalar<float>()() = 3.0;
 
-        tf::Tensor b(tf::DT_FLOAT, tf::TensorShape());
-        b.scalar<float>()() = 2.0;
+        // tf::Tensor b(tf::DT_FLOAT, tf::TensorShape());
+        // b.scalar<float>()() = 2.0;
 
-        std::vector<std::pair<std::string, tensorflow::Tensor>> inputs = {
-            { "a", a },
-            { "b", b },
-        };
+        // std::vector<std::pair<std::string, tensorflow::Tensor>> inputs = {
+        //     { "a", a },
+        //     { "b", b },
+        // };
 
-        // The session will initialize the outputs
-        std::vector<tf::Tensor> outputs;
+        // // The session will initialize the outputs
+        // std::vector<tf::Tensor> outputs;
 
-        // Run the session, evaluating our "c" operation from the graph
-        status = session->Run(inputs, {"c"}, {}, &outputs);
-        if (!status.ok()) {
-            std::cout << status.ToString() << "\n";
-            return;
-        }
+        // // Run the session, evaluating our "c" operation from the graph
+        // status = session->Run(inputs, {"c"}, {}, &outputs);
+        // if (!status.ok()) {
+        //     std::cout << status.ToString() << "\n";
+        //     return;
+        // }
 
-        // Grab the first output (we only evaluated one graph node: "c")
-        // and convert the node to a scalar representation.
-        auto output_c = outputs[0].scalar<float>();
+        // // Grab the first output (we only evaluated one graph node: "c")
+        // // and convert the node to a scalar representation.
+        // auto output_c = outputs[0].scalar<float>();
 
-        // (There are similar methods for vectors and matrices here:
-        // https://github.com/tensorflow/tensorflow/blob/master/tensorflow/core/public/tensor.h)
+        // // (There are similar methods for vectors and matrices here:
+        // // https://github.com/tensorflow/tensorflow/blob/master/tensorflow/core/public/tensor.h)
 
-        // Print the results
-        std::cout << outputs[0].DebugString() << "\n"; // Tensor<type: float shape: [] values: 30>
-        std::cout << output_c() << "\n"; // 30
+        // // Print the results
+        // std::cout << outputs[0].DebugString() << "\n"; // Tensor<type: float shape: [] values: 30>
+        // std::cout << output_c() << "\n"; // 30
 
         // Free any resources used by the session
         session->Close();
