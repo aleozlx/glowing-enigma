@@ -13,6 +13,9 @@ class TexImage {
     unsigned int width, height, channels;
     float f32width, f32height;
 
+    /// Create a TexImage with everything uninitialized
+    TexImage() {}
+    
     TexImage(unsigned int width, unsigned int height, unsigned int channels);
     inline ImTextureID id() {
         return reinterpret_cast<void*>(texid);

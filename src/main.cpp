@@ -166,13 +166,40 @@ class TestWindow: public IWindow {
 
 class SuperpixelAnalyzerWindow: public IWindow {
     public:
-    SuperpixelAnalyzerWindow(bool show = false) {
+    SuperpixelAnalyzerWindow(int frame_width, int frame_height, unsigned int capture_id):
+        io(ImGui::GetIO()),
+        width(frame_width),
+        height(frame_height),
+        cam(capture_id, frame_width, frame_height)
+    {
         std::string id = IWindow::uuid(5);
         std::snprintf(_title, IM_ARRAYSIZE(_title), "Superpixel Analyzer [%s]", id.c_str());
-        this->_is_shown = show;
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
     }
 
     IWindow* Show() override {
+        cam.open();
+        cam.capture >> frame;
+        frame_size = frame.size();
+        width = frame_size.width;
+        height = frame_size.height;
+        channels = 3;
+        imSuperpixels = TexImage(width, height, channels);
+        imHistogram = TexImage(width - 20, height, channels);
+#ifdef HAS_LIBGSLIC
+        _superpixel = GSLIC({
+            .img_size = { width, height },
+            .no_segs = 64,
+            .spixel_size = 32,
+            .no_iters = 5,
+            .coh_weight = 0.6f,
+            .do_enforce_connectivity = true,
+            .color_space = gSLICr::XYZ, // gSLICr::CIELAB | gSLICr::RGB
+            .seg_method = gSLICr::GIVEN_SIZE // gSLICr::GIVEN_NUM
+        });
+#else
+        _superpixel = OpenCVSLIC(32, 30.0f, 3, 10.0f);
+#endif
         this->_is_shown = true;
         return dynamic_cast<IWindow*>(this);
     }
@@ -180,22 +207,104 @@ class SuperpixelAnalyzerWindow: public IWindow {
     bool Draw() override {
         if (!this->_is_shown) return false;
         ImGui::Begin(this->_title, &this->_is_shown);
+        cam.capture >> frame;
+        cv::cvtColor(frame, frame_rgb, cv::COLOR_BGR2RGB);
+#ifdef HAS_LIBGSLIC
+        ISuperpixel* superpixel = _superpixel.Compute(frame);
+#else
+        ISuperpixel* superpixel = _superpixel.Compute(frame);
+#endif
 
+        superpixel->GetContour(superpixel_contour);
+        superpixel->GetLabels(superpixel_labels);
+        superpixel_id = superpixel_labels.at<unsigned int>(pointer_y, pointer_x);
+        superpixel_selected = superpixel_labels == superpixel_id;
+        cv::meanStdDev(frame_rgb, sel_mean, sel_std, superpixel_selected);
+        if (use_spotlight) spotlight(frame_rgb, superpixel_selected, 0.5);
+        frame_rgb.setTo(cv::Scalar(200, 5, 240), superpixel_contour);
+        
+        imSuperpixels.Load(frame_rgb.data);
+        ImGui::Text("(%d, %d) => (%d,)", imSuperpixels.width, imSuperpixels.height, superpixel->GetNumSuperpixels());
+        ImVec2 pos = ImGui::GetCursorScreenPos();
+        ImGui::Image(imSuperpixels.id(), imSuperpixels.size(), ImVec2(0,0), ImVec2(1,1), ImVec4(1.0f,1.0f,1.0f,1.0f), ImVec4(1.0f,1.0f,1.0f,0.5f));
+        if (ImGui::IsItemHovered()) {
+            pointer_x = static_cast<int>(io.MousePos.x - pos.x);
+            pointer_y = static_cast<int>(io.MousePos.y - pos.y);
+            if (use_magnifier) {
+                ImGui::BeginTooltip();
+                float region_sz = 32.0f;
+                float region_x = io.MousePos.x - pos.x - region_sz * 0.5f; if (region_x < 0.0f) region_x = 0.0f; else if (region_x > imSuperpixels.f32width - region_sz) region_x = imSuperpixels.f32width - region_sz;
+                float region_y = io.MousePos.y - pos.y - region_sz * 0.5f; if (region_y < 0.0f) region_y = 0.0f; else if (region_y > imSuperpixels.f32height - region_sz) region_y = imSuperpixels.f32height - region_sz;
+                float zoom = 4.0f;
+                ImGui::Text("Ptr: (%d,%d) Id: %d", pointer_x, pointer_y, superpixel_id);
+                ImGui::Text("Mean: (%.1f,%.1f,%.1f)", sel_mean[0], sel_mean[1], sel_mean[2]);
+                ImGui::Text("Std: (%.1f,%.1f,%.1f)", sel_std[0], sel_std[1], sel_std[2]);
+                ImGui::Image(
+                    imSuperpixels.id(), ImVec2(region_sz * zoom, region_sz * zoom),
+                    imSuperpixels.uv(region_x, region_y), imSuperpixels.uv(region_x + region_sz, region_y + region_sz),
+                    ImVec4(1.0f, 1.0f, 1.0f, 1.0f), ImVec4(1.0f, 1.0f, 1.0f, 0.5f));
+                ImGui::EndTooltip();
+            }
+        }
+#ifndef HAS_LIBGSLIC // with OpenCV SLIC, it is possible to use different superpixel sizes over time
+        ImGui::SliderFloat("Superpixel Size", &_superpixel.superpixel_size, 15.0f, 80.0f);
+#endif
+        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+        ImGui::Checkbox("Spotlight", &use_spotlight); ImGui::SameLine(120);
+        ImGui::Checkbox("Magnifier", &use_magnifier);
+
+        if (ImGui::TreeNode("RGB Histogram")) {
+            ImGui::Checkbox("Normalize Superpixel", &normalize_component);
+            RGBHistogram hist(frame, imHistogram.width, imHistogram.height, (use_spotlight?0.3f:1.0f), normalize_component);
+            hist.Compute(histogram, use_spotlight?superpixel_selected:cv::noArray());
+            imHistogram.Load(histogram.data);
+            ImGui::Image(imHistogram.id(), imHistogram.size(), ImVec2(0,0), ImVec2(1,1), ImVec4(1.0f,1.0f,1.0f,1.0f), ImVec4(1.0f,1.0f,1.0f,0.5f));
+            ImGui::TreePop();
+        }
+
+        if (ImGui::TreeNode("Superpixel Features")) {
+            ImGui::Text("Test.");
+            ImGui::TreePop();
+        }
         ImGui::End();
         return true;
     }
 
     protected:
+    ImGuiIO& io;
+    int width, height, channels;
+    Camera cam;
+    TexImage imSuperpixels;
+    TexImage imHistogram;
+#ifdef HAS_LIBGSLIC
+    GSLIC _superpixel;
+#else
+    OpenCVSLIC _superpixel;
+#endif
+
     bool _is_shown = false;
     char _title[32];
+    int pointer_x = 0, pointer_y = 0;
+    unsigned int superpixel_id = 0;
+    bool use_spotlight = true;
+    bool use_magnifier = false;
+    bool normalize_component = true;
+
+    cv::Mat frame, frame_rgb;
+    cv::Mat superpixel_contour, superpixel_labels, superpixel_selected;
+    cv::Scalar sel_mean, sel_std;
+    cv::Mat histogram, histogram_rgb;
+    cv::Size frame_size;
 };
+
+std::list<std::unique_ptr<IWindow>> windows;
 
 int main(int, char**) {
     App app = App::Initialize();
     if (!app.ok) return 1;
     GLFWwindow* window = app.window;
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
+    // ImGuiIO& io = ImGui::GetIO(); (void)io;
+    // io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
     std::vector<CameraInfo> cameras;
@@ -204,39 +313,10 @@ int main(int, char**) {
         std::snprintf(camera_name, IM_ARRAYSIZE(camera_name), "/dev/video%d", v);
         cameras.push_back({ .name = std::string(camera_name), .id = v });
     }
-    Camera cam(0, WIDTH, HEIGHT);
-    cam.open();
-
-    cv::Mat frame, frame_rgb;
-    cv::Mat superpixel_contour, superpixel_labels, superpixel_selected;
-    cv::Scalar sel_mean, sel_std;
-    cam.capture >> frame;
-    cv::Size frame_size = frame.size();
-    int width=frame_size.width, height=frame_size.height, channels=3;
-    TexImage imSuperpixels(width, height, channels);
-    TexImage imHistogram(width - 20, height, channels);
-    cv::Mat histogram, histogram_rgb;
-#ifdef HAS_LIBGSLIC
-    GSLIC _superpixel({
-        .img_size = { width, height },
-        .no_segs = 64,
-        .spixel_size = 32,
-        .no_iters = 5,
-        .coh_weight = 0.6f,
-        .do_enforce_connectivity = true,
-        .color_space = gSLICr::XYZ, // gSLICr::CIELAB | gSLICr::RGB
-        .seg_method = gSLICr::GIVEN_SIZE // gSLICr::GIVEN_NUM
-    });
-#else
-    OpenCVSLIC _superpixel(32, 30.0f, 3, 10.0f);
-#endif
-
-    std::list<std::unique_ptr<IWindow>> windows;
 
     // Main loop
     while (!glfwWindowShouldClose(window)){
         glfwPollEvents();
-
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
@@ -276,79 +356,10 @@ int main(int, char**) {
 #endif
             ImGui::Separator();
 
-            if(ImGui::Button("Initialize"))
-                windows.push_back(std::make_unique<TestWindow>(true));
-            ImGui::End();
-
-            // **********************
-            // * Superpixel Analyzer window
-            // **********************
-            static int pointer_x = 0, pointer_y = 0;
-            static unsigned int superpixel_id = 0;
-            static bool use_spotlight = true;
-            static bool use_magnifier = false;
-
-            ImGui::Begin("Superpixel Analyzer");
-
-            cam.capture >> frame;
-            cv::cvtColor(frame, frame_rgb, cv::COLOR_BGR2RGB);
-#ifdef HAS_LIBGSLIC
-            ISuperpixel* superpixel = _superpixel.Compute(frame);
-#else
-            ISuperpixel* superpixel = _superpixel.Compute(frame);
-#endif
-
-            superpixel->GetContour(superpixel_contour);
-            superpixel->GetLabels(superpixel_labels);
-            superpixel_id = superpixel_labels.at<unsigned int>(pointer_y, pointer_x);
-            superpixel_selected = superpixel_labels == superpixel_id;
-            cv::meanStdDev(frame_rgb, sel_mean, sel_std, superpixel_selected);
-            if (use_spotlight) spotlight(frame_rgb, superpixel_selected, 0.5);
-            frame_rgb.setTo(cv::Scalar(200, 5, 240), superpixel_contour);
-            
-            imSuperpixels.Load(frame_rgb.data);
-            ImGui::Text("(%d, %d) => (%d,)", imSuperpixels.width, imSuperpixels.height, superpixel->GetNumSuperpixels());
-            ImVec2 pos = ImGui::GetCursorScreenPos();
-            ImGui::Image(imSuperpixels.id(), imSuperpixels.size(), ImVec2(0,0), ImVec2(1,1), ImVec4(1.0f,1.0f,1.0f,1.0f), ImVec4(1.0f,1.0f,1.0f,0.5f));
-            if (ImGui::IsItemHovered()) {
-                pointer_x = static_cast<int>(io.MousePos.x - pos.x);
-                pointer_y = static_cast<int>(io.MousePos.y - pos.y);
-                if (use_magnifier) {
-                    ImGui::BeginTooltip();
-                    float region_sz = 32.0f;
-                    float region_x = io.MousePos.x - pos.x - region_sz * 0.5f; if (region_x < 0.0f) region_x = 0.0f; else if (region_x > imSuperpixels.f32width - region_sz) region_x = imSuperpixels.f32width - region_sz;
-                    float region_y = io.MousePos.y - pos.y - region_sz * 0.5f; if (region_y < 0.0f) region_y = 0.0f; else if (region_y > imSuperpixels.f32height - region_sz) region_y = imSuperpixels.f32height - region_sz;
-                    float zoom = 4.0f;
-                    ImGui::Text("Ptr: (%d,%d) Id: %d", pointer_x, pointer_y, superpixel_id);
-                    ImGui::Text("Mean: (%.1f,%.1f,%.1f)", sel_mean[0], sel_mean[1], sel_mean[2]);
-                    ImGui::Text("Std: (%.1f,%.1f,%.1f)", sel_std[0], sel_std[1], sel_std[2]);
-                    ImGui::Image(
-                        imSuperpixels.id(), ImVec2(region_sz * zoom, region_sz * zoom),
-                        imSuperpixels.uv(region_x, region_y), imSuperpixels.uv(region_x + region_sz, region_y + region_sz),
-                        ImVec4(1.0f, 1.0f, 1.0f, 1.0f), ImVec4(1.0f, 1.0f, 1.0f, 0.5f));
-                    ImGui::EndTooltip();
-                }
-            }
-#ifndef HAS_LIBGSLIC // with OpenCV SLIC, it is possible to use different superpixel sizes over time
-            ImGui::SliderFloat("Superpixel Size", &_superpixel.superpixel_size, 15.0f, 80.0f);
-#endif
-            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-            ImGui::Checkbox("Spotlight", &use_spotlight); ImGui::SameLine(120);
-            ImGui::Checkbox("Magnifier", &use_magnifier);
-
-            if (ImGui::TreeNode("RGB Histogram")) {
-                static bool normalize_component = true;
-                ImGui::Checkbox("Normalize Superpixel", &normalize_component);
-                RGBHistogram hist(frame, imHistogram.width, imHistogram.height, (use_spotlight?0.3f:1.0f), normalize_component);
-                hist.Compute(histogram, use_spotlight?superpixel_selected:cv::noArray());
-                imHistogram.Load(histogram.data);
-                ImGui::Image(imHistogram.id(), imHistogram.size(), ImVec2(0,0), ImVec2(1,1), ImVec4(1.0f,1.0f,1.0f,1.0f), ImVec4(1.0f,1.0f,1.0f,0.5f));
-                ImGui::TreePop();
-            }
-
-            if (ImGui::TreeNode("Superpixel Features")) {
-                ImGui::Text("Test.");
-                ImGui::TreePop();
+            if(ImGui::Button("Initialize")) {
+                auto w = std::make_unique<SuperpixelAnalyzerWindow>(WIDTH, HEIGHT, 0);
+                w->Show();
+                windows.push_back(std::move(w));
             }
             ImGui::End();
 

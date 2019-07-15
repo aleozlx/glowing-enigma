@@ -15,6 +15,7 @@ class ISuperpixel {
 
 class OpenCVSLIC: public ISuperpixel {
     public:
+    OpenCVSLIC() {}
     OpenCVSLIC(float superpixel_size, float ruler, unsigned int num_iter, float min_size);
     ISuperpixel* Compute(cv::InputArray frame) override;
     void GetContour(cv::OutputArray output) override;
@@ -33,6 +34,7 @@ class OpenCVSLIC: public ISuperpixel {
 #include "gSLICr_Lib/gSLICr.h"
 class GSLIC: public ISuperpixel {
     public:
+    GSLIC();
     GSLIC(gSLICr::objects::settings settings);
     ISuperpixel* Compute(cv::InputArray frame) override;
     void GetContour(cv::OutputArray output) override;
@@ -42,8 +44,8 @@ class GSLIC: public ISuperpixel {
     protected:
     unsigned int width, height;
     unsigned int actual_num_superpixels = 0;
-    gSLICr::UChar4Image in_img;
-    gSLICr::engines::core_engine gSLICr_engine;
+    std::unique_ptr<gSLICr::UChar4Image> in_img;
+    std::unique_ptr<gSLICr::engines::core_engine> gSLICr_engine;
     static void copy_image(const cv::Mat& inimg, gSLICr::UChar4Image* outimg);
     static void copy_image(const gSLICr::UChar4Image* inimg, cv::Mat& outimg);
     
