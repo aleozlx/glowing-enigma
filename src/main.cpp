@@ -378,7 +378,7 @@ int main(int, char**) {
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
-        for (std::list<std::unique_ptr<IWindow>>::iterator w = windows.begin(); w != windows.end();) {
+        for (auto w = windows.begin(); w != windows.end();) {
             if (!(*w)->Draw()) windows.erase(w++);
             else ++w;
         }
