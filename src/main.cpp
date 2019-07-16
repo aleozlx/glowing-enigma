@@ -9,6 +9,7 @@
 #include <opencv2/videoio.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/core/utility.hpp>
+#include <opencv2/dnn.hpp>
 
 #include "app.hpp"
 #include "teximage.hpp"

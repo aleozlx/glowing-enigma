@@ -100,6 +100,7 @@ endif()
 target_include_directories(superpixel_analyzer PUBLIC ${root}/examples)
 target_link_libraries(superpixel_analyzer imgui ${SOIL_LIBRARY} ${GLFW_LIBRARIES} ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES}
     opencv_core
+    opencv_dnn
     opencv_imgproc
     opencv_ximgproc
     opencv_imgcodecs
