@@ -9,10 +9,17 @@
 #include <GLFW/glfw3.h>
 
 /// ImGui App boiler plates
-struct App {
+class App final {
+    public:
     int ok;
     GLFWwindow* window;
     const char* glsl_version;
+
+    App(App&&) = default;
+    App& operator=(App&&) = default;
+    App (const App &) = delete;
+    App& operator=(const App &) = delete;
+    ~App() { this->Shutdown(); }
 
     inline static App Ok(GLFWwindow* w, const char* glsl_version) {
         return {.ok=1, .window=w, .glsl_version=glsl_version};
@@ -24,6 +31,8 @@ struct App {
 
     static App Initialize();
     void Render(ImVec4 &clear_color);
+
+    private:
     void Shutdown();
 };
 

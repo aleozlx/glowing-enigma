@@ -252,6 +252,5 @@ int main(int, char**) {
         }
         app.Render(clear_color);
     }
-    app.Shutdown();
     return 0;
 }
