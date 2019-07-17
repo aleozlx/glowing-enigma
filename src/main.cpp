@@ -174,50 +174,53 @@ struct RGBHistogram {
 
 class VGG16: public TensorFlowInference {
     public:
-    VGG16(): TensorFlowInference("/tank/datasets/research/model_weights/vgg16.frozen.pb") {
+    VGG16():
+        TensorFlowInference("/tank/datasets/research/model_weights/vgg16.frozen.pb")
+    {
+        // TODO fix this
+        SetInputResolution(256, 256);
+    }
 
+    void SetInputResolution(unsigned int width, unsigned int height) {
+        input_shape = tf::TensorShape({1, height, width, 3});
+        input_tensor = tf::Tensor(tf::DT_UINT8, input_shape);
     }
 
     void Compute(cv::InputArray frame, cv::OutputArray output) override {
-// tf::GraphDef graph_def;
-        // // status = tf::ReadBinaryProto(tf::Env::Default(), "/tank/datasets/research/model_weights/vgg16.frozen.pb", &graph_def);
-        // if (!status.ok()) {
-        //     std::cerr << status.ToString() << "\n";
-        //     return;
-        // }
+        if(!session) return;
 
-        // tf::Tensor a(tf::DT_FLOAT, tf::TensorShape());
-        // a.scalar<float>()() = 3.0;
+        cv::Mat image;
+        // image.convertTo(image, CV_32FC3);
+        cv::resize(frame, image, cv::Size(256, 256));
+        
+        // * DOUBLE CHECK: SIZE TYPE CONTINUITY
+        CV_Assert(image.type() == CV_8UC3);
+        tf::StringPiece tmp_data = input_tensor.tensor_data();
+        std::memcpy(const_cast<char*>(tmp_data.data()), image.data, input_shape.num_elements() * sizeof(char));
 
-        // tf::Tensor b(tf::DT_FLOAT, tf::TensorShape());
-        // b.scalar<float>()() = 2.0;
+        std::vector<std::pair<std::string, tensorflow::Tensor>> inputs = {
+            { "DataSource/Placeholder:0", input_tensor },
+        };
 
-        // std::vector<std::pair<std::string, tensorflow::Tensor>> inputs = {
-        //     { "a", a },
-        //     { "b", b },
-        // };
+        std::vector<tf::Tensor> outputs;
 
-        // // The session will initialize the outputs
-        // std::vector<tf::Tensor> outputs;
+        tf::Status status = session->Run(inputs, {"DCNN/block5_pool/MaxPool:0"}, {}, &outputs);
+        if (!status.ok()) {
+            std::cout << status.ToString() << "\n";
+            return;
+        }
 
-        // // Run the session, evaluating our "c" operation from the graph
-        // status = session->Run(inputs, {"c"}, {}, &outputs);
-        // if (!status.ok()) {
-        //     std::cout << status.ToString() << "\n";
-        //     return;
-        // }
-
-        // // Grab the first output (we only evaluated one graph node: "c")
-        // // and convert the node to a scalar representation.
+        // https://github.com/tensorflow/tensorflow/blob/master/tensorflow/core/framework/tensor.h
         // auto output_c = outputs[0].scalar<float>();
-
-        // // (There are similar methods for vectors and matrices here:
-        // // https://github.com/tensorflow/tensorflow/blob/master/tensorflow/core/public/tensor.h)
-
+        
         // // Print the results
-        // std::cout << outputs[0].DebugString() << "\n"; // Tensor<type: float shape: [] values: 30>
+        std::cout << outputs[0].DebugString() << "\n"; // Tensor<type: float shape: [] values: 30>
         // std::cout << output_c() << "\n"; // 30
     }
+
+    protected:
+    tf::TensorShape input_shape;
+    tf::Tensor input_tensor;
 };
 
 const unsigned int WIDTH = 432;
@@ -315,6 +318,7 @@ class SuperpixelAnalyzerWindow: public IWindow {
 #else
         _superpixel = OpenCVSLIC(32, 30.0f, 3, 10.0f);
 #endif
+        // dcnn.SetInputResolution(height, width);
         dcnn.NewSession();
         this->_is_shown = true;
         return dynamic_cast<IWindow*>(this);
@@ -424,6 +428,7 @@ class SuperpixelAnalyzerWindow: public IWindow {
 #else
     OpenCVSLIC _superpixel;
 #endif
+    VGG16 dcnn;
 
     bool _is_shown = false;
     char _title[64];
@@ -439,8 +444,6 @@ class SuperpixelAnalyzerWindow: public IWindow {
     cv::Scalar sel_mean, sel_std;
     cv::Mat histogram, histogram_rgb;
     cv::Size frame_size;
-
-    VGG16 dcnn;
 };
 
 class IStaticWindow: public IWindow {
