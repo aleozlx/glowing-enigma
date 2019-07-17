@@ -13,7 +13,7 @@
 
 #include "app.hpp"
 #include "teximage.hpp"
-#include "superpixel_pipeline.hpp"
+#include "superpixel.hpp"
 #include "dcnn.hpp"
 #include "misc_ocv.hpp"
 
@@ -318,8 +318,9 @@ class SuperpixelAnalyzerWindow: public IWindow {
 #else
         _superpixel = OpenCVSLIC(32, 30.0f, 3, 10.0f);
 #endif
-        // dcnn.SetInputResolution(height, width);
+        dcnn.Summary();
         dcnn.NewSession();
+        
         this->_is_shown = true;
         return dynamic_cast<IWindow*>(this);
     }

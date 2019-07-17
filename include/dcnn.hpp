@@ -15,6 +15,7 @@ class TensorFlowInference {
     TensorFlowInference(std::string const &graph_path);
     virtual ~TensorFlowInference();
     virtual bool NewSession();
+    virtual void Summary();
 
     virtual void Compute(cv::InputArray frame, cv::OutputArray output) = 0;
 

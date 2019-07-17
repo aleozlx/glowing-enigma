@@ -12,12 +12,9 @@ TensorFlowInference::~TensorFlowInference() {
         session->Close();
 }
 
-bool TensorFlowInference::NewSession() {
-    if (!_loaded) return false;
-    tf::Status status = tf::NewSession(tf::SessionOptions(), &session);
-    if (!status.ok()) return false;
+void TensorFlowInference::Summary() {
+    if (!_loaded) return;
 
-    // print a summary of the loaded graph
     for (int i = 0; i < graph.node_size(); i++) {
         auto const &node = graph.node(i);
         auto const &attr_map = node.attr();
@@ -40,7 +37,12 @@ bool TensorFlowInference::NewSession() {
             std::cout << graph.node(i).name() << " ]" << std::endl;
         }           
     }
+}
 
+bool TensorFlowInference::NewSession() {
+    if (!_loaded) return false;
+    tf::Status status = tf::NewSession(tf::SessionOptions(), &session);
+    if (!status.ok()) return false;
     status = session->Create(graph);
     return status.ok();
 }
