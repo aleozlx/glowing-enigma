@@ -30,6 +30,7 @@ class App final {
     }
 
     static App Initialize();
+    bool EventLoop();
     void Render(ImVec4 &clear_color);
 
     private:

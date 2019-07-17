@@ -236,21 +236,19 @@ class PipelineSettingsWindow: public IStaticWindow {
 int main(int, char**) {
     App app = App::Initialize();
     if (!app.ok) return 1;
-    GLFWwindow* window = app.window;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     cameras = cv_misc::camera_enumerate2();
     windows.push_back(std::make_unique<PipelineSettingsWindow>());
 
-    while (!glfwWindowShouldClose(window)){
-        glfwPollEvents();
-        ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplGlfw_NewFrame();
-        ImGui::NewFrame();
+    while (app.EventLoop()){
         for (auto w = windows.begin(); w != windows.end();) {
             if (!(*w)->Draw()) windows.erase(w++);
             else ++w;
         }
         app.Render(clear_color);
     }
+
+    // Ensure dtors are orderly invoked: heavy RAII usage
+    windows.clear();
     return 0;
 }
