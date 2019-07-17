@@ -221,7 +221,7 @@ class DCNNInference {
         return status.ok();
     }
 
-    virtual void Compute() = 0;
+    virtual void Compute(cv::InputArray frame, cv::OutputArray output) = 0;
 
     // void Compute() {
         // tf::GraphDef graph_def;
@@ -274,7 +274,7 @@ class VGG16: public DCNNInference {
 
     }
 
-    void Compute() override {
+    void Compute(cv::InputArray frame, cv::OutputArray output) override {
 
     }
 };
