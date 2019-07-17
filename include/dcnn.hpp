@@ -17,7 +17,7 @@ class TensorFlowInference {
     virtual bool NewSession();
     virtual void Summary();
 
-    virtual void Compute(cv::InputArray frame, cv::OutputArray output) = 0;
+    virtual void Compute(cv::InputArray frame) {}
 
     protected:
     bool _loaded;

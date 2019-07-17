@@ -182,11 +182,14 @@ class VGG16: public TensorFlowInference {
     }
 
     void SetInputResolution(unsigned int width, unsigned int height) {
-        input_shape = tf::TensorShape({1, height, width, 3});
-        input_tensor = tf::Tensor(tf::DT_UINT8, input_shape);
+        this->input_shape = tf::TensorShape({1, height, width, 3});
+        this->input_tensor = tf::Tensor(tf::DT_UINT8, input_shape);
+        this->inputs = {
+            { "DataSource/Placeholder:0", input_tensor },
+        };
     }
 
-    void Compute(cv::InputArray frame, cv::OutputArray output) override {
+    void Compute(cv::InputArray frame) override {
         if(!session) return;
 
         cv::Mat image;
@@ -195,14 +198,8 @@ class VGG16: public TensorFlowInference {
         
         // * DOUBLE CHECK: SIZE TYPE CONTINUITY
         CV_Assert(image.type() == CV_8UC3);
-        tf::StringPiece tmp_data = input_tensor.tensor_data();
-        std::memcpy(const_cast<char*>(tmp_data.data()), image.data, input_shape.num_elements() * sizeof(char));
-
-        std::vector<std::pair<std::string, tensorflow::Tensor>> inputs = {
-            { "DataSource/Placeholder:0", input_tensor },
-        };
-
-        std::vector<tf::Tensor> outputs;
+        tf::StringPiece input_buffer = input_tensor.tensor_data();
+        std::memcpy(const_cast<char*>(input_buffer.data()), image.data, input_shape.num_elements() * sizeof(char));
 
         tf::Status status = session->Run(inputs, {"DCNN/block5_pool/MaxPool:0"}, {}, &outputs);
         if (!status.ok()) {
@@ -214,13 +211,15 @@ class VGG16: public TensorFlowInference {
         // auto output_c = outputs[0].scalar<float>();
         
         // // Print the results
-        std::cout << outputs[0].DebugString() << "\n"; // Tensor<type: float shape: [] values: 30>
+        // std::cout << outputs[0].DebugString() << "\n"; // Tensor<type: float shape: [] values: 30>
         // std::cout << output_c() << "\n"; // 30
     }
 
     protected:
     tf::TensorShape input_shape;
     tf::Tensor input_tensor;
+    std::vector<std::pair<std::string, tensorflow::Tensor>> inputs;
+    std::vector<tf::Tensor> outputs;
 };
 
 const unsigned int WIDTH = 432;
@@ -298,7 +297,7 @@ class SuperpixelAnalyzerWindow: public IWindow {
             return nullptr;
         }
         cam.capture >> frame;
-        frame_size = frame.size();
+        cv::Size frame_size = frame.size();
         width = frame_size.width;
         height = frame_size.height;
         channels = 3;
@@ -330,6 +329,7 @@ class SuperpixelAnalyzerWindow: public IWindow {
         ImGui::Begin(this->_title, &this->_is_shown);
         cam.capture >> frame;
         cv::cvtColor(frame, frame_rgb, cv::COLOR_BGR2RGB);
+        frame_dcnn = frame_rgb.clone();
 #ifdef HAS_LIBGSLIC
         ISuperpixel* superpixel = _superpixel.Compute(frame);
 #else
@@ -356,8 +356,6 @@ class SuperpixelAnalyzerWindow: public IWindow {
             cv::drawContours(frame_rgb, superpixel_sel_contour, 0, cv::Scalar(200, 5, 240), 2);
             break;
         }
-
-        dcnn.Compute(frame_rgb, cv::noArray());
         
         imSuperpixels.Load(frame_rgb.data);
         ImGui::Text("(%d, %d) => (%d,)", imSuperpixels.width, imSuperpixels.height, superpixel->GetNumSuperpixels());
@@ -373,6 +371,7 @@ class SuperpixelAnalyzerWindow: public IWindow {
                 float region_y = io.MousePos.y - pos.y - region_sz * 0.5f; if (region_y < 0.0f) region_y = 0.0f; else if (region_y > imSuperpixels.f32height - region_sz) region_y = imSuperpixels.f32height - region_sz;
                 float zoom = 4.0f;
                 ImGui::Text("Ptr: (%d,%d) Id: %d", pointer_x, pointer_y, superpixel_id);
+                cv::Scalar sel_mean, sel_std;
                 cv::meanStdDev(frame_rgb, sel_mean, sel_std, superpixel_selected);
                 ImGui::Text("Mean: (%.1f,%.1f,%.1f)", sel_mean[0], sel_mean[1], sel_mean[2]);
                 ImGui::Text("Std: (%.1f,%.1f,%.1f)", sel_std[0], sel_std[1], sel_std[2]);
@@ -403,14 +402,14 @@ class SuperpixelAnalyzerWindow: public IWindow {
         if (ImGui::TreeNode("RGB Histogram")) {
             ImGui::Checkbox("Normalize Superpixel", &normalize_component);
             RGBHistogram hist(frame, imHistogram.width, imHistogram.height, (sel?0.3f:1.0f), normalize_component);
-            hist.Compute(histogram, sel?superpixel_selected:cv::noArray());
-            imHistogram.Load(histogram.data);
+            hist.Compute(histogram_rgb, sel?superpixel_selected:cv::noArray());
+            imHistogram.Load(histogram_rgb.data);
             ImGui::Image(imHistogram.id(), imHistogram.size(), ImVec2(0,0), ImVec2(1,1), ImVec4(1.0f,1.0f,1.0f,1.0f), ImVec4(1.0f,1.0f,1.0f,0.5f));
             ImGui::TreePop();
         }
 
         if (ImGui::TreeNode("Superpixel DCNN Features")) {
-            ImGui::Text("Test.");
+            dcnn.Compute(frame_dcnn);
             ImGui::TreePop();
         }
         ImGui::End();
@@ -419,7 +418,7 @@ class SuperpixelAnalyzerWindow: public IWindow {
 
     protected:
     ImGuiIO& io;
-    int width, height, channels;    bool _use_selection;
+    int width, height, channels;
     CameraInfo *_camera_info;
     Camera cam;
     TexImage imSuperpixels;
@@ -439,12 +438,9 @@ class SuperpixelAnalyzerWindow: public IWindow {
     bool use_magnifier = false;
     bool normalize_component = true;
 
-    cv::Mat frame, frame_rgb;
+    cv::Mat frame, frame_rgb, frame_dcnn;
     cv::Mat superpixel_contour, superpixel_labels, superpixel_selected;
-    // std::vector<std::vector<cv::Point>> superpixel_sel_contour;
-    cv::Scalar sel_mean, sel_std;
-    cv::Mat histogram, histogram_rgb;
-    cv::Size frame_size;
+    cv::Mat histogram_rgb;
 };
 
 class IStaticWindow: public IWindow {
