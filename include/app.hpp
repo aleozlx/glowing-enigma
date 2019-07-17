@@ -51,6 +51,7 @@ class IStaticWindow: public IWindow {
     virtual IWindow* Show() override {
         return dynamic_cast<IWindow*>(this);
     }
+    virtual bool Draw() = 0;
     virtual ~IStaticWindow() {}
 };
 

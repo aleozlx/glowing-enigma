@@ -149,6 +149,7 @@ class SuperpixelAnalyzerWindow: public IWindow {
 
         if (ImGui::TreeNode("Superpixel DCNN Features")) {
             dcnn.Compute(frame_dcnn);
+            
             ImGui::TreePop();
         }
         ImGui::End();
