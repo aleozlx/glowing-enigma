@@ -22,6 +22,57 @@
 namespace tf = tensorflow;
 #endif
 
+// Provides a data binding interface for ImGui
+template <typename Tdst>
+class IBinding final {
+    public:
+    virtual Tdst Export() const = 0;
+    virtual void Import(const Tdst &dst) = 0;
+
+    private:
+    IBinding() {} // Implicit interface, do NOT inherit
+};
+
+// Provides a RAII data binding
+template <typename Tsrc, typename Tdst>
+struct Binding {
+    Tsrc &source;
+    Tdst binding;
+
+    Binding(Tsrc &src): source(src) {
+        this->binding = src.Export();
+    }
+
+    ~Binding() {
+        this->source.Import(this->binding);
+    }
+};
+
+class SuperpixelSelection {
+    public:
+    enum Mode {
+        None,
+        Spotlight,
+        Contour
+    } mode;
+
+    operator bool() const {
+        return mode != None;
+    }
+
+    bool Export() const {
+        return mode != None;
+    }
+
+    void Import(bool dst) {
+        if (dst) {
+            if(mode == None)
+                mode = Spotlight;
+        }
+        else mode = None;
+    }
+};
+
 void spotlight(cv::OutputArray _frame, cv::InputArray _sel, float alpha) {
     cv::Mat frame = _frame.getMat(), selection = _sel.getMat();
     CV_Assert(frame.type() == CV_8UC3 && selection.type() == CV_8UC1);
@@ -343,7 +394,7 @@ class SuperpixelAnalyzerWindow: public IWindow {
         superpixel_id = superpixel_labels.at<unsigned int>(pointer_y, pointer_x);
         superpixel_selected = superpixel_labels == superpixel_id;
         cv::meanStdDev(frame_rgb, sel_mean, sel_std, superpixel_selected);
-        if (use_spotlight) spotlight(frame_rgb, superpixel_selected, 0.5);
+        if (sel.mode == SuperpixelSelection::Spotlight) spotlight(frame_rgb, superpixel_selected, 0.5);
         frame_rgb.setTo(cv::Scalar(200, 5, 240), superpixel_contour);
         
         imSuperpixels.Load(frame_rgb.data);
@@ -373,13 +424,21 @@ class SuperpixelAnalyzerWindow: public IWindow {
         ImGui::SliderFloat("Superpixel Size", &_superpixel.superpixel_size, 15.0f, 80.0f);
 #endif
         ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-        ImGui::Checkbox("Spotlight", &use_spotlight); ImGui::SameLine(120);
+        // sel.Sync();
+        // ImGui::Checkbox("Spotlight", &sel._use_selection); ImGui::SameLine(120);
+        // sel.Notify();
+
+        {
+            Binding<SuperpixelSelection, bool> _sel(sel);
+            ImGui::Checkbox("Spotlight", &_sel.binding); ImGui::SameLine(120);
+        }
+
         ImGui::Checkbox("Magnifier", &use_magnifier);
 
         if (ImGui::TreeNode("RGB Histogram")) {
             ImGui::Checkbox("Normalize Superpixel", &normalize_component);
-            RGBHistogram hist(frame, imHistogram.width, imHistogram.height, (use_spotlight?0.3f:1.0f), normalize_component);
-            hist.Compute(histogram, use_spotlight?superpixel_selected:cv::noArray());
+            RGBHistogram hist(frame, imHistogram.width, imHistogram.height, (sel?0.3f:1.0f), normalize_component);
+            hist.Compute(histogram, sel?superpixel_selected:cv::noArray());
             imHistogram.Load(histogram.data);
             ImGui::Image(imHistogram.id(), imHistogram.size(), ImVec2(0,0), ImVec2(1,1), ImVec4(1.0f,1.0f,1.0f,1.0f), ImVec4(1.0f,1.0f,1.0f,0.5f));
             ImGui::TreePop();
@@ -395,7 +454,7 @@ class SuperpixelAnalyzerWindow: public IWindow {
 
     protected:
     ImGuiIO& io;
-    int width, height, channels;
+    int width, height, channels;    bool _use_selection;
     CameraInfo *_camera_info;
     Camera cam;
     TexImage imSuperpixels;
@@ -410,7 +469,7 @@ class SuperpixelAnalyzerWindow: public IWindow {
     char _title[32];
     int pointer_x = 0, pointer_y = 0;
     unsigned int superpixel_id = 0;
-    bool use_spotlight = true;
+    SuperpixelSelection sel = {SuperpixelSelection::Mode::Spotlight};
     bool use_magnifier = false;
     bool normalize_component = true;
 
