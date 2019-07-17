@@ -1,227 +1,12 @@
 #include <iostream>
-#include <memory>
 #include <string>
 #include <vector>
-#include <list>
-#include <cstdlib>
-
-#include <opencv2/imgproc.hpp>
-#include <opencv2/videoio.hpp>
-#include <opencv2/imgcodecs.hpp>
-#include <opencv2/core/utility.hpp>
-#include <opencv2/dnn.hpp>
 
 #include "app.hpp"
 #include "teximage.hpp"
-#include "wm.hpp"
 #include "misc_ocv.hpp"
 #include "superpixel.hpp"
 #include "dcnn.hpp"
-
-#ifdef HAS_TF
-namespace tf = tensorflow;
-#endif
-
-// Provides a data binding interface for ImGui
-template <typename Tdst>
-class IBinding final {
-    public:
-    virtual Tdst Export() const = 0;
-    virtual void Import(const Tdst &dst) = 0;
-
-    private:
-    IBinding() {} // Implicit interface, do NOT inherit
-};
-
-// Provides a RAII data binding
-template <typename Tsrc, typename Tdst>
-struct Binding {
-    Tsrc &source;
-    Tdst binding;
-
-    Binding(Tsrc &src): source(src) {
-        this->binding = src.Export();
-    }
-
-    ~Binding() {
-        this->source.Import(this->binding);
-    }
-};
-
-class SuperpixelSelection {
-    public:
-    enum Mode {
-        None,
-        Spotlight,
-        Contour
-    } mode;
-
-    operator bool() const {
-        return mode != None;
-    }
-
-    bool Export() const {
-        return mode != None;
-    }
-
-    void Import(bool dst) {
-        if (dst) {
-            if(mode == None)
-                mode = Spotlight;
-        }
-        else mode = None;
-    }
-};
-
-void spotlight(cv::OutputArray _frame, cv::InputArray _sel, float alpha) {
-    cv::Mat frame = _frame.getMat(), selection = _sel.getMat();
-    CV_Assert(frame.type() == CV_8UC3 && selection.type() == CV_8UC1);
-    const int channels = 3;
-    for (int i=0; i<frame.rows; ++i) {
-        unsigned char* fptr = frame.ptr(i);
-        const unsigned char* sptr = selection.ptr(i);
-        for (int j=0; j<frame.cols; ++j) {
-            if (sptr[j]==0) {
-                fptr[j*channels] = static_cast<unsigned char>(fptr[j*channels] * alpha);
-                fptr[j*channels+1] = static_cast<unsigned char>(fptr[j*channels+1] * alpha);
-                fptr[j*channels+2] = static_cast<unsigned char>(fptr[j*channels+2] * alpha);
-            }
-        }
-    }
-}
-
-// TODO investigate ImGui::PlotHistogram
-struct RGBHistogram {
-    float alpha;
-    unsigned int width, height;
-    std::vector<cv::Mat> bgr_planes;
-    bool normalize_component;
-
-    RGBHistogram(cv::InputArray inputRGBImage, unsigned int width, unsigned int height, float alpha=1.0f, bool normalize_component=false) {
-        this->width = width;
-        this->height = height;
-        this->alpha = alpha;
-        this->normalize_component = normalize_component;
-        cv::split(inputRGBImage, bgr_planes);
-    }
-
-    void Compute(cv::OutputArray output, cv::InputArray mask=cv::noArray()) {
-        const int histSize = 256;
-        const float range[] = { 0, 256 } ;
-        const float* histRange = { range };
-        bool uniform = true; bool accumulate = false;
-        cv::Mat b_hist, g_hist, r_hist;
-        cv::calcHist(&bgr_planes[0], 1, 0, cv::noArray(), b_hist, 1, &histSize, &histRange, uniform, accumulate);
-        cv::calcHist(&bgr_planes[1], 1, 0, cv::noArray(), g_hist, 1, &histSize, &histRange, uniform, accumulate);
-        cv::calcHist(&bgr_planes[2], 1, 0, cv::noArray(), r_hist, 1, &histSize, &histRange, uniform, accumulate);
-
-        // Draw the global histograms for B, G and R
-        float bin_w = (double)width / histSize;
-        cv::Mat histImage(height, width, CV_8UC3, cv::Scalar(0,0,0));
-
-        // Normalize the result
-        double mb = cv::norm(b_hist, cv::NORM_INF),
-            mg = cv::norm(g_hist, cv::NORM_INF),
-            mr = cv::norm(r_hist, cv::NORM_INF);
-        double max_count = std::max({mb, mg, mr});
-        b_hist = b_hist / max_count * histImage.rows;
-        g_hist = g_hist / max_count * histImage.rows;
-        r_hist = r_hist / max_count * histImage.rows;
-        
-        // Draw for each channel
-        // Note: Blue and Red channels are purposefully swapped to avoid color conversion before rendering
-        float _alpha = mask.empty()?1.0f:this->alpha;
-        for(int i = 1;i < histSize;i++){
-            cv::line( histImage, cv::Point( bin_w*(i-1), height - cvRound(b_hist.at<float>(i-1)) ) ,
-                            cv::Point( bin_w*(i), height - cvRound(b_hist.at<float>(i)) ),
-                            cv::Scalar( 0, 0, 255*_alpha), 2, 8, 0  );
-            cv::line( histImage, cv::Point( bin_w*(i-1), height - cvRound(g_hist.at<float>(i-1)) ) ,
-                            cv::Point( bin_w*(i), height - cvRound(g_hist.at<float>(i)) ),
-                            cv::Scalar( 0, 255*_alpha, 0), 2, 8, 0  );
-            cv::line( histImage, cv::Point( bin_w*(i-1), height - cvRound(r_hist.at<float>(i-1)) ) ,
-                            cv::Point( bin_w*(i), height - cvRound(r_hist.at<float>(i)) ),
-                            cv::Scalar( 255*_alpha, 0, 0), 2, 8, 0  );
-        }
-
-        if (!mask.empty()) {
-            cv::calcHist(&bgr_planes[0], 1, 0, mask, b_hist, 1, &histSize, &histRange, uniform, accumulate);
-            cv::calcHist(&bgr_planes[1], 1, 0, mask, g_hist, 1, &histSize, &histRange, uniform, accumulate);
-            cv::calcHist(&bgr_planes[2], 1, 0, mask, r_hist, 1, &histSize, &histRange, uniform, accumulate);
-            if (normalize_component) {
-                cv::normalize(b_hist, b_hist, 0, histImage.rows, cv::NORM_MINMAX, -1, cv::noArray());
-                cv::normalize(g_hist, g_hist, 0, histImage.rows, cv::NORM_MINMAX, -1, cv::noArray());
-                cv::normalize(r_hist, r_hist, 0, histImage.rows, cv::NORM_MINMAX, -1, cv::noArray());
-            }
-            else {
-                b_hist = b_hist / max_count * histImage.rows;
-                g_hist = g_hist / max_count * histImage.rows;
-                r_hist = r_hist / max_count * histImage.rows;
-            }
-            for(int i = 1;i < histSize;i++){
-                cv::line( histImage, cv::Point( bin_w*(i-1), height - cvRound(b_hist.at<float>(i-1)) ) ,
-                                cv::Point( bin_w*(i), height - cvRound(b_hist.at<float>(i)) ),
-                                cv::Scalar( 0, 0, 255), 2, 8, 0  );
-                cv::line( histImage, cv::Point( bin_w*(i-1), height - cvRound(g_hist.at<float>(i-1)) ) ,
-                                cv::Point( bin_w*(i), height - cvRound(g_hist.at<float>(i)) ),
-                                cv::Scalar( 0, 255, 0), 2, 8, 0  );
-                cv::line( histImage, cv::Point( bin_w*(i-1), height - cvRound(r_hist.at<float>(i-1)) ) ,
-                                cv::Point( bin_w*(i), height - cvRound(r_hist.at<float>(i)) ),
-                                cv::Scalar( 255, 0, 0), 2, 8, 0  );
-            }
-        }
-        output.assign(histImage);
-    }
-};
-
-class VGG16: public TensorFlowInference {
-    public:
-    VGG16():
-        TensorFlowInference("/tank/datasets/research/model_weights/vgg16.frozen.pb")
-    {
-        // TODO fix this
-        SetInputResolution(256, 256);
-    }
-
-    void SetInputResolution(unsigned int width, unsigned int height) {
-        this->input_shape = tf::TensorShape({1, height, width, 3});
-        this->input_tensor = tf::Tensor(tf::DT_UINT8, input_shape);
-        this->inputs = {
-            { "DataSource/Placeholder:0", input_tensor },
-        };
-    }
-
-    void Compute(cv::InputArray frame) override {
-        if(!session) return;
-
-        cv::Mat image;
-        // image.convertTo(image, CV_32FC3);
-        cv::resize(frame, image, cv::Size(256, 256));
-        
-        // * DOUBLE CHECK: SIZE TYPE CONTINUITY
-        CV_Assert(image.type() == CV_8UC3);
-        tf::StringPiece input_buffer = input_tensor.tensor_data();
-        std::memcpy(const_cast<char*>(input_buffer.data()), image.data, input_shape.num_elements() * sizeof(char));
-
-        tf::Status status = session->Run(inputs, {"DCNN/block5_pool/MaxPool:0"}, {}, &outputs);
-        if (!status.ok()) {
-            std::cout << status.ToString() << "\n";
-            return;
-        }
-
-        // https://github.com/tensorflow/tensorflow/blob/master/tensorflow/core/framework/tensor.h
-        // auto output_c = outputs[0].scalar<float>();
-        
-        // // Print the results
-        // std::cout << outputs[0].DebugString() << "\n"; // Tensor<type: float shape: [] values: 30>
-        // std::cout << output_c() << "\n"; // 30
-    }
-
-    protected:
-    tf::TensorShape input_shape;
-    tf::Tensor input_tensor;
-    std::vector<std::pair<std::string, tensorflow::Tensor>> inputs;
-    std::vector<tf::Tensor> outputs;
-};
 
 const unsigned int WIDTH = 432;
 const unsigned int HEIGHT = 240;
@@ -299,7 +84,7 @@ class SuperpixelAnalyzerWindow: public IWindow {
             break;
 
             case SuperpixelSelection::Mode::Spotlight:
-            spotlight(frame_rgb, superpixel_selected, 0.5);
+            cv_misc::fx::spotlight(frame_rgb, superpixel_selected, 0.5);
             superpixel->GetContour(superpixel_contour);
             frame_rgb.setTo(cv::Scalar(200, 5, 240), superpixel_contour);
             break;
@@ -355,7 +140,7 @@ class SuperpixelAnalyzerWindow: public IWindow {
 
         if (ImGui::TreeNode("RGB Histogram")) {
             ImGui::Checkbox("Normalize Superpixel", &normalize_component);
-            RGBHistogram hist(frame, imHistogram.width, imHistogram.height, (sel?0.3f:1.0f), normalize_component);
+            cv_misc::fx::RGBHistogram hist(frame, imHistogram.width, imHistogram.height, (sel?0.3f:1.0f), normalize_component);
             hist.Compute(histogram_rgb, sel?superpixel_selected:cv::noArray());
             imHistogram.Load(histogram_rgb.data);
             ImGui::Image(imHistogram.id(), imHistogram.size(), ImVec2(0,0), ImVec2(1,1), ImVec4(1.0f,1.0f,1.0f,1.0f), ImVec4(1.0f,1.0f,1.0f,0.5f));
@@ -446,7 +231,6 @@ class PipelineSettingsWindow: public IStaticWindow {
         return true;
     }
 };
-
 
 int main(int, char**) {
     App app = App::Initialize();

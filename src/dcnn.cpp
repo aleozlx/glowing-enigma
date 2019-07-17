@@ -1,5 +1,5 @@
 #include "dcnn.hpp"
-
+#ifdef HAS_TF
 namespace tf = tensorflow;
 
 TensorFlowInference::TensorFlowInference(std::string const &graph_path) {
@@ -46,3 +46,46 @@ bool TensorFlowInference::NewSession() {
     status = session->Create(graph);
     return status.ok();
 }
+
+
+VGG16::VGG16():
+    TensorFlowInference("/tank/datasets/research/model_weights/vgg16.frozen.pb")
+{
+    // TODO fix this
+    SetInputResolution(256, 256);
+}
+
+void VGG16::SetInputResolution(unsigned int width, unsigned int height) {
+    this->input_shape = tf::TensorShape({1, height, width, 3});
+    this->input_tensor = tf::Tensor(tf::DT_UINT8, input_shape);
+    this->inputs = {
+        { "DataSource/Placeholder:0", input_tensor },
+    };
+}
+
+void VGG16::Compute(cv::InputArray frame) {
+    if(!session) return;
+
+    cv::Mat image;
+    // image.convertTo(image, CV_32FC3);
+    cv::resize(frame, image, cv::Size(256, 256));
+    
+    // * DOUBLE CHECK: SIZE TYPE CONTINUITY
+    CV_Assert(image.type() == CV_8UC3);
+    tf::StringPiece input_buffer = input_tensor.tensor_data();
+    std::memcpy(const_cast<char*>(input_buffer.data()), image.data, input_shape.num_elements() * sizeof(char));
+
+    tf::Status status = session->Run(inputs, {"DCNN/block5_pool/MaxPool:0"}, {}, &outputs);
+    if (!status.ok()) {
+        std::cout << status.ToString() << "\n";
+        return;
+    }
+
+    // https://github.com/tensorflow/tensorflow/blob/master/tensorflow/core/framework/tensor.h
+    // auto output_c = outputs[0].scalar<float>();
+    
+    // // Print the results
+    // std::cout << outputs[0].DebugString() << "\n"; // Tensor<type: float shape: [] values: 30>
+    // std::cout << output_c() << "\n"; // 30
+}
+#endif

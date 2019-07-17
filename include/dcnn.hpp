@@ -3,7 +3,10 @@
 
 #ifdef HAS_TF
 #include <string>
+#include <memory>
+#include <cstdlib>
 #include <opencv2/core/utility.hpp>
+#include <opencv2/imgproc.hpp>
 #include <tensorflow/core/public/session.h>
 #include <tensorflow/core/platform/env.h>
 
@@ -21,6 +24,19 @@ class TensorFlowInference {
 
     protected:
     bool _loaded;
+};
+
+class VGG16: public TensorFlowInference {
+    public:
+    VGG16();
+    void SetInputResolution(unsigned int width, unsigned int height);
+    void Compute(cv::InputArray frame) override;
+
+    protected:
+    tensorflow::TensorShape input_shape;
+    tensorflow::Tensor input_tensor;
+    std::vector<std::pair<std::string, tensorflow::Tensor>> inputs;
+    std::vector<tensorflow::Tensor> outputs;
 };
 
 #endif // HAS_TF
