@@ -14,11 +14,10 @@
 #include "app.hpp"
 #include "teximage.hpp"
 #include "superpixel_pipeline.hpp"
+#include "dcnn.hpp"
 #include "misc_ocv.hpp"
 
 #ifdef HAS_TF
-#include <tensorflow/core/public/session.h>
-#include <tensorflow/core/platform/env.h>
 namespace tf = tensorflow;
 #endif
 
@@ -173,58 +172,14 @@ struct RGBHistogram {
     }
 };
 
-class DCNNInference {
+class VGG16: public TensorFlowInference {
     public:
-    tf::GraphDef graph;
-    tf::Session *session = nullptr;
+    VGG16(): TensorFlowInference("/tank/datasets/research/model_weights/vgg16.frozen.pb") {
 
-    DCNNInference(std::string const &graph_path) {
-        tf::Status status = tf::ReadBinaryProto(tf::Env::Default(), graph_path, &graph);
-        this->_loaded = status.ok();
     }
 
-    virtual ~DCNNInference() {
-        if (session)
-            session->Close();
-    }
-
-    bool NewSession() {
-        if (!_loaded) return false;
-        tf::Status status = tf::NewSession(tf::SessionOptions(), &session);
-        if (!status.ok()) return false;
-
-        // print a summary of the loaded graph
-        for (int i = 0; i < graph.node_size(); i++) {
-            auto const &node = graph.node(i);
-            auto const &attr_map = node.attr();
-            std::vector<int64_t> tensor_shape;
-            auto const &shape_attr = attr_map.find("shape");
-            if (shape_attr != attr_map.end()) {
-                auto const &value = shape_attr->second;
-                auto const &shape = value.shape();
-                for (int i=0; i<shape.dim_size(); ++i) {
-                    auto const &dim = shape.dim(i);
-                    auto const &dim_size = dim.size();
-                    tensor_shape.push_back(dim_size);
-                }
-                std::cout << "[ ";
-                std::copy(tensor_shape.begin(), tensor_shape.end(), std::ostream_iterator<int>(std::cout, " "));
-                auto const &dtype_attr = attr_map.find("dtype");
-                if (dtype_attr != attr_map.end()) {
-                    std::cout << tf::DataTypeString(dtype_attr->second.type()) << ' ';
-                }
-                std::cout << graph.node(i).name() << " ]" << std::endl;
-            }           
-        }
-
-        status = session->Create(graph);
-        return status.ok();
-    }
-
-    virtual void Compute(cv::InputArray frame, cv::OutputArray output) = 0;
-
-    // void Compute() {
-        // tf::GraphDef graph_def;
+    void Compute(cv::InputArray frame, cv::OutputArray output) override {
+// tf::GraphDef graph_def;
         // // status = tf::ReadBinaryProto(tf::Env::Default(), "/tank/datasets/research/model_weights/vgg16.frozen.pb", &graph_def);
         // if (!status.ok()) {
         //     std::cerr << status.ToString() << "\n";
@@ -262,20 +217,6 @@ class DCNNInference {
         // // Print the results
         // std::cout << outputs[0].DebugString() << "\n"; // Tensor<type: float shape: [] values: 30>
         // std::cout << output_c() << "\n"; // 30
-    // }
-
-    protected:
-    bool _loaded;
-};
-
-class VGG16: public DCNNInference {
-    public:
-    VGG16(): DCNNInference("/tank/datasets/research/model_weights/vgg16.frozen.pb") {
-
-    }
-
-    void Compute(cv::InputArray frame, cv::OutputArray output) override {
-
     }
 };
 
@@ -374,6 +315,7 @@ class SuperpixelAnalyzerWindow: public IWindow {
 #else
         _superpixel = OpenCVSLIC(32, 30.0f, 3, 10.0f);
 #endif
+        dcnn.NewSession();
         this->_is_shown = true;
         return dynamic_cast<IWindow*>(this);
     }
@@ -409,6 +351,8 @@ class SuperpixelAnalyzerWindow: public IWindow {
             cv::drawContours(frame_rgb, superpixel_sel_contour, 0, cv::Scalar(200, 5, 240), 2);
             break;
         }
+
+        dcnn.Compute(frame_rgb, cv::noArray());
         
         imSuperpixels.Load(frame_rgb.data);
         ImGui::Text("(%d, %d) => (%d,)", imSuperpixels.width, imSuperpixels.height, superpixel->GetNumSuperpixels());
@@ -495,6 +439,8 @@ class SuperpixelAnalyzerWindow: public IWindow {
     cv::Scalar sel_mean, sel_std;
     cv::Mat histogram, histogram_rgb;
     cv::Size frame_size;
+
+    VGG16 dcnn;
 };
 
 class IStaticWindow: public IWindow {
@@ -563,9 +509,6 @@ int main(int, char**) {
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     cameras = cv_misc::camera_enumerate2();
     windows.push_back(std::make_unique<PipelineSettingsWindow>());
-
-    VGG16 dcnn;
-    dcnn.NewSession();
 
     while (!glfwWindowShouldClose(window)){
         glfwPollEvents();
