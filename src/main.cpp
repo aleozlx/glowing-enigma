@@ -388,21 +388,26 @@ class SuperpixelAnalyzerWindow: public IWindow {
 #else
         ISuperpixel* superpixel = _superpixel.Compute(frame);
 #endif
-
-        superpixel->GetContour(superpixel_contour);
         superpixel->GetLabels(superpixel_labels);
         superpixel_id = superpixel_labels.at<unsigned int>(pointer_y, pointer_x);
         superpixel_selected = superpixel_labels == superpixel_id;
         switch (sel.mode) {
             case SuperpixelSelection::Mode::None:
-                frame_rgb.setTo(cv::Scalar(200, 5, 240), superpixel_contour);
-                break;
+            superpixel->GetContour(superpixel_contour);
+            frame_rgb.setTo(cv::Scalar(200, 5, 240), superpixel_contour);
+            break;
+
             case SuperpixelSelection::Mode::Spotlight:
-                spotlight(frame_rgb, superpixel_selected, 0.5);
-                frame_rgb.setTo(cv::Scalar(200, 5, 240), superpixel_contour);
-                break;
+            spotlight(frame_rgb, superpixel_selected, 0.5);
+            superpixel->GetContour(superpixel_contour);
+            frame_rgb.setTo(cv::Scalar(200, 5, 240), superpixel_contour);
+            break;
+
             case SuperpixelSelection::Mode::Contour:
-                break;
+            std::vector<std::vector<cv::Point>> superpixel_sel_contour;
+            cv::findContours(superpixel_selected, superpixel_sel_contour, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
+            cv::drawContours(frame_rgb, superpixel_sel_contour, 0, cv::Scalar(200, 5, 240), 2);
+            break;
         }
         
         imSuperpixels.Load(frame_rgb.data);
@@ -480,12 +485,13 @@ class SuperpixelAnalyzerWindow: public IWindow {
     char _title[32];
     int pointer_x = 0, pointer_y = 0;
     unsigned int superpixel_id = 0;
-    SuperpixelSelection sel = {SuperpixelSelection::Mode::Spotlight};
+    SuperpixelSelection sel = {SuperpixelSelection::Mode::Contour};
     bool use_magnifier = false;
     bool normalize_component = true;
 
     cv::Mat frame, frame_rgb;
     cv::Mat superpixel_contour, superpixel_labels, superpixel_selected;
+    // std::vector<std::vector<cv::Point>> superpixel_sel_contour;
     cv::Scalar sel_mean, sel_std;
     cv::Mat histogram, histogram_rgb;
     cv::Size frame_size;
