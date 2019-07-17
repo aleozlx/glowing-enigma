@@ -338,7 +338,7 @@ class SuperpixelAnalyzerWindow: public IWindow {
         _camera_info(_camera_info),
         cam(_camera_info->id, frame_width, frame_height)
     {
-        std::string id = IWindow::uuid(5);
+        std::string id = _camera_info->name; //IWindow::uuid(5);
         std::snprintf(_title, IM_ARRAYSIZE(_title), "Superpixel Analyzer [%s]", id.c_str());
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
     }
@@ -482,7 +482,7 @@ class SuperpixelAnalyzerWindow: public IWindow {
 #endif
 
     bool _is_shown = false;
-    char _title[32];
+    char _title[64];
     int pointer_x = 0, pointer_y = 0;
     unsigned int superpixel_id = 0;
     SuperpixelSelection sel = {SuperpixelSelection::Mode::Contour};
