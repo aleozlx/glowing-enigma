@@ -84,7 +84,6 @@ target_link_libraries(gui_demo imgui ${SOIL_LIBRARY} ${GLFW_LIBRARIES} ${GLEW_LI
 add_executable(superpixel_analyzer
     ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/app.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/teximage.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/superpixel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/dcnn.cpp
     ${root}/examples/imgui_impl_glfw.cpp ${root}/examples/imgui_impl_opengl3.cpp)
@@ -114,7 +113,6 @@ add_executable(gslic_demo
     ${CMAKE_CURRENT_SOURCE_DIR}/demos/gslic.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/app.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/superpixel.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/teximage.cpp
     ${root}/examples/imgui_impl_glfw.cpp ${root}/examples/imgui_impl_opengl3.cpp)
 target_compile_definitions(gslic_demo PUBLIC IMGUI_IMPL_OPENGL_LOADER_GLEW)
 if(CUDA_FOUND)
