@@ -393,9 +393,17 @@ class SuperpixelAnalyzerWindow: public IWindow {
         superpixel->GetLabels(superpixel_labels);
         superpixel_id = superpixel_labels.at<unsigned int>(pointer_y, pointer_x);
         superpixel_selected = superpixel_labels == superpixel_id;
-        cv::meanStdDev(frame_rgb, sel_mean, sel_std, superpixel_selected);
-        if (sel.mode == SuperpixelSelection::Spotlight) spotlight(frame_rgb, superpixel_selected, 0.5);
-        frame_rgb.setTo(cv::Scalar(200, 5, 240), superpixel_contour);
+        switch (sel.mode) {
+            case SuperpixelSelection::Mode::None:
+                frame_rgb.setTo(cv::Scalar(200, 5, 240), superpixel_contour);
+                break;
+            case SuperpixelSelection::Mode::Spotlight:
+                spotlight(frame_rgb, superpixel_selected, 0.5);
+                frame_rgb.setTo(cv::Scalar(200, 5, 240), superpixel_contour);
+                break;
+            case SuperpixelSelection::Mode::Contour:
+                break;
+        }
         
         imSuperpixels.Load(frame_rgb.data);
         ImGui::Text("(%d, %d) => (%d,)", imSuperpixels.width, imSuperpixels.height, superpixel->GetNumSuperpixels());
@@ -411,6 +419,7 @@ class SuperpixelAnalyzerWindow: public IWindow {
                 float region_y = io.MousePos.y - pos.y - region_sz * 0.5f; if (region_y < 0.0f) region_y = 0.0f; else if (region_y > imSuperpixels.f32height - region_sz) region_y = imSuperpixels.f32height - region_sz;
                 float zoom = 4.0f;
                 ImGui::Text("Ptr: (%d,%d) Id: %d", pointer_x, pointer_y, superpixel_id);
+                cv::meanStdDev(frame_rgb, sel_mean, sel_std, superpixel_selected);
                 ImGui::Text("Mean: (%.1f,%.1f,%.1f)", sel_mean[0], sel_mean[1], sel_mean[2]);
                 ImGui::Text("Std: (%.1f,%.1f,%.1f)", sel_std[0], sel_std[1], sel_std[2]);
                 ImGui::Image(
@@ -424,16 +433,18 @@ class SuperpixelAnalyzerWindow: public IWindow {
         ImGui::SliderFloat("Superpixel Size", &_superpixel.superpixel_size, 15.0f, 80.0f);
 #endif
         ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-        // sel.Sync();
-        // ImGui::Checkbox("Spotlight", &sel._use_selection); ImGui::SameLine(120);
-        // sel.Notify();
-
-        {
-            Binding<SuperpixelSelection, bool> _sel(sel);
-            ImGui::Checkbox("Spotlight", &_sel.binding); ImGui::SameLine(120);
-        }
-
         ImGui::Checkbox("Magnifier", &use_magnifier);
+        if (ImGui::RadioButton("None", sel.mode == SuperpixelSelection::Mode::None)) {
+            sel.mode = SuperpixelSelection::Mode::None;
+        }
+        ImGui::SameLine();
+        if (ImGui::RadioButton("Spotlight", sel.mode == SuperpixelSelection::Mode::Spotlight)) {
+            sel.mode = SuperpixelSelection::Mode::Spotlight;
+        }
+        ImGui::SameLine();
+        if (ImGui::RadioButton("Contour", sel.mode == SuperpixelSelection::Mode::Contour)) {
+            sel.mode = SuperpixelSelection::Mode::Contour;
+        }
 
         if (ImGui::TreeNode("RGB Histogram")) {
             ImGui::Checkbox("Normalize Superpixel", &normalize_component);
