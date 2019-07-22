@@ -1,7 +1,20 @@
+#include <iostream>
 #include "app.hpp"
 
 static void glfw_error_callback(int error, const char* description) {
     std::cerr << "Glfw Error " << error << description << std::endl;
+}
+
+/// Polls events and returns whether to continue
+bool App::EventLoop() {
+    if(!glfwWindowShouldClose(window)) {
+        glfwPollEvents();
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+        return true;
+    }
+    else return false;
 }
 
 /// ImGui App boiler plates

@@ -9,7 +9,7 @@
 
 #include "app.hpp"
 #include "teximage.hpp"
-#include "superpixel_pipeline.hpp"
+#include "superpixel.hpp"
 #include "misc_ocv.hpp"
 
 const unsigned int WIDTH = 432;
@@ -63,6 +63,5 @@ int main(int, char**) {
         }
         app.Render(clear_color);
     }
-    app.Shutdown();
     return 0;
 }

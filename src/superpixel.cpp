@@ -1,4 +1,4 @@
-#include "superpixel_pipeline.hpp"
+#include "superpixel.hpp"
 
 ISuperpixel* OpenCVSLIC::Compute(cv::InputArray frame) {
     cv::medianBlur(frame, frame_hsv, 5);
