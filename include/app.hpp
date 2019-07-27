@@ -65,6 +65,7 @@ class IStaticWindow: public IWindow {
     virtual ~IStaticWindow() {}
 };
 
+// TODO Consider visitor pattern?
 // Provides a data binding interface for ImGui
 template <typename Tdst>
 class IBinding final {
