@@ -90,7 +90,6 @@ class SuperpixelAnalyzerWindow: public IWindow {
             break;
 
             case SuperpixelSelection::Mode::Contour:
-            std::vector<std::vector<cv::Point>> superpixel_sel_contour;
             cv::findContours(superpixel_selected, superpixel_sel_contour, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
             cv::drawContours(frame_rgb, superpixel_sel_contour, 0, cv::Scalar(200, 5, 240), 2);
             break;
@@ -147,6 +146,31 @@ class SuperpixelAnalyzerWindow: public IWindow {
             ImGui::TreePop();
         }
 
+        if (sel.mode == SuperpixelSelection::Mode::Contour && ImGui::TreeNode("Moments")) {
+            superpixel_moments = cv::moments(superpixel_sel_contour[0], true);
+            // spatial moments
+            //   m00, m10, m01, m20, m11, m02, m30, m21, m12, m03;
+            // central moments
+            //   mu20, mu11, mu02, mu30, mu21, mu12, mu03;
+            // central normalized moments
+            //   nu20, nu11, nu02, nu30, nu21, nu12, nu03;
+            #define v0 superpixel_moments.m00
+            #define v1 superpixel_moments.mu02
+            #define v2 superpixel_moments.mu20
+            #define v3 superpixel_moments.mu11
+            ImGui::Text("Area: %.1f", v0);
+            ImGui::Text("Centroid: (%4.1f,%4.1f)", superpixel_moments.m10/v0, superpixel_moments.m01/v0);
+            ImGui::Text("Covariance: [%4.1f %4.1f; . %4.1f]", v2/v0, v3/v0, v1/v0);
+            double d = sqrt(v3*v3*4+(v1-v2)*(v1-v2));
+            double e1 = (v1+v2+d)/(2*v0), e2 = (v1+v2-d)/(2*v0);
+            ImGui::Text("Eigenvalues: (%4.1f,%4.1f)", e1, e2);
+            ImGui::Text("Eccentricity: %4.1f", sqrt(1.0-e2/e1));
+            double hu[7];
+            cv::HuMoments(superpixel_moments, hu);
+            ImGui::Text("Hu: %4.1f %4.1f %4.1f %4.1f %4.1f %4.1f %4.1f", hu[0], hu[1], hu[2], hu[3], hu[4], hu[5], hu[6]);
+            ImGui::TreePop();
+        }
+
         if (ImGui::TreeNode("Superpixel DCNN Features")) {
             dcnn.Compute(frame_dcnn);
             
@@ -180,7 +204,10 @@ class SuperpixelAnalyzerWindow: public IWindow {
 
     cv::Mat frame, frame_rgb, frame_dcnn;
     cv::Mat superpixel_contour, superpixel_labels, superpixel_selected;
+    std::vector<std::vector<cv::Point>> superpixel_sel_contour;
+    cv::Moments superpixel_moments;
     cv::Mat histogram_rgb;
+    
 };
 
 std::vector<CameraInfo> cameras;
@@ -324,7 +351,7 @@ int main(int, char**) {
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     cameras = cv_misc::camera_enumerate2();
     windows.push_back(std::make_unique<PipelineSettingsWindow>());
-    windows.push_back(std::make_unique<MomentsExperiment>());
+    // windows.push_back(std::make_unique<MomentsExperiment>());
 
     while (app.EventLoop()){
         for (auto w = windows.begin(); w != windows.end();) {
