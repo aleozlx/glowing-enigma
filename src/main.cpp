@@ -233,12 +233,98 @@ class PipelineSettingsWindow: public IStaticWindow {
     }
 };
 
+class MomentsWindow: public IWindow {
+    public:
+    MomentsWindow(int frame_width, int frame_height, CameraInfo *_camera_info):
+        io(ImGui::GetIO()),
+        width(frame_width),
+        height(frame_height),
+        _camera_info(_camera_info),
+        cam(_camera_info->id, frame_width, frame_height)
+    {
+        std::string id = _camera_info->name;
+        std::snprintf(_title, IM_ARRAYSIZE(_title), "Superpixel Analyzer [%s]", id.c_str());
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
+    }
+
+    IWindow* Show() override {
+        if (!cam.open()) {
+            // Cannot receive video feed
+            this->_is_shown = false;
+            return nullptr;
+        }
+        cam.capture >> frame;
+        cv::Size frame_size = frame.size();
+        width = frame_size.width;
+        height = frame_size.height;
+        channels = 3;
+
+        
+        this->_is_shown = true;
+        return dynamic_cast<IWindow*>(this);
+    }
+
+    bool Draw() override {
+        if (!this->_is_shown) return false;
+        ImGui::Begin(this->_title, &this->_is_shown);
+        cam.capture >> frame;
+
+        ImGui::End();
+        return true;
+    }
+
+    protected:
+    ImGuiIO& io;
+    int width, height, channels;
+    CameraInfo *_camera_info;
+    Camera cam;
+
+    bool _is_shown = false;
+    char _title[64];
+
+    cv::Mat frame;
+};
+
+class MomentsExperiment: public IStaticWindow {
+    public:
+    bool Draw() override {
+        ImGui::Begin("Moments Experiment");
+        static CameraInfo *d_camera_current = &cameras[0];
+        if(ImGui::TreeNode("Video Feed") && cameras.size()>0) {
+            if (ImGui::BeginCombo("Source", d_camera_current->name.c_str())) {
+                for (auto &camera_info: cameras) {
+                    bool is_selected = (d_camera_current == &camera_info);
+                    if (ImGui::Selectable(camera_info.name.c_str(), is_selected))
+                        d_camera_current = &camera_info;
+                    if (is_selected)
+                        ImGui::SetItemDefaultFocus();
+                }
+                ImGui::EndCombo();
+            }
+            ImGui::TreePop();
+        }
+
+        ImGui::Separator();
+
+        if(ImGui::Button("Initialize")) {
+            if (d_camera_current->Acquire()) {
+                auto w = std::make_unique<MomentsWindow>(WIDTH, HEIGHT, d_camera_current);
+                if (w->Show() != nullptr)
+                    windows.push_back(std::move(w));
+            }
+        }
+        ImGui::End();
+        return true;
+    }
+};
+
 int main(int, char**) {
     App app = App::Initialize();
     if (!app.ok) return 1;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     cameras = cv_misc::camera_enumerate2();
     windows.push_back(std::make_unique<PipelineSettingsWindow>());
+    windows.push_back(std::make_unique<MomentsExperiment>());
 
     while (app.EventLoop()){
         for (auto w = windows.begin(); w != windows.end();) {
