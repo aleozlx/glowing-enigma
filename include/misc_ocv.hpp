@@ -36,7 +36,16 @@ namespace cv_misc {
             unsigned int width, height;
             std::vector<cv::Mat> bgr_planes;
             bool normalize_component;
-            RGBHistogram(cv::InputArray inputRGBImage, unsigned int width, unsigned int height, float alpha=1.0f, bool normalize_component=false);
+            RGBHistogram(cv::InputArray frame, unsigned int width, unsigned int height, float alpha=1.0f, bool normalize_component=false);
+            void Compute(cv::OutputArray output, cv::InputArray mask=cv::noArray());
+        };
+
+        struct HSVHistogram {
+            float alpha;
+            unsigned int width, height;
+            std::vector<cv::Mat> hsv_planes;
+            bool normalize_component;
+            HSVHistogram(cv::InputArray frame, unsigned int width, unsigned int height, float alpha=1.0f, bool normalize_component=false);
             void Compute(cv::OutputArray output, cv::InputArray mask=cv::noArray());
         };
     }

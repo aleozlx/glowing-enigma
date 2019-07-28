@@ -85,7 +85,9 @@ class TestWindow: public IWindow {
         this->_is_shown = show;
     }
 
-    bool Draw() override {
+    virtual ~TestWindow() {}
+
+    virtual bool Draw() override {
         if (!this->_is_shown) return false;
         ImGui::Begin(this->_title, &this->_is_shown);
         ImGui::Text("Hello from another window!");
@@ -95,7 +97,7 @@ class TestWindow: public IWindow {
         return true;
     }
 
-    IWindow* Show() override {
+    virtual IWindow* Show() override {
         this->_is_shown = true;
         return dynamic_cast<IWindow*>(this);
     }
@@ -119,6 +121,8 @@ struct Binding {
         this->source.Import(this->binding);
     }
 };
+
+GLuint LoadShaders(const char *fname_vert, const char *fname_frag);
 
 struct SuperpixelSelection {
     enum Mode {

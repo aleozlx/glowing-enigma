@@ -96,12 +96,12 @@ void cv_misc::fx::spotlight(OutputArray _frame, InputArray _sel, float alpha) {
     }
 }
 
-cv_misc::fx::RGBHistogram::RGBHistogram(InputArray inputRGBImage, unsigned int width, unsigned int height, float alpha, bool normalize_component) {
+cv_misc::fx::RGBHistogram::RGBHistogram(InputArray frame, unsigned int width, unsigned int height, float alpha, bool normalize_component) {
     this->width = width;
     this->height = height;
     this->alpha = alpha;
     this->normalize_component = normalize_component;
-    split(inputRGBImage, bgr_planes);
+    split(frame, bgr_planes);
 }
 
 void cv_misc::fx::RGBHistogram::Compute(OutputArray output, InputArray mask) {
@@ -169,4 +169,79 @@ void cv_misc::fx::RGBHistogram::Compute(OutputArray output, InputArray mask) {
         }
     }
     output.assign(histImage);
+}
+
+cv_misc::fx::HSVHistogram::HSVHistogram(InputArray frame, unsigned int width, unsigned int height, float alpha, bool normalize_component) {
+    this->width = width;
+    this->height = height;
+    this->alpha = alpha;
+    this->normalize_component = normalize_component;
+    Mat frame_hsv;
+    cvtColor(frame, frame_hsv, cv::COLOR_BGR2HSV);
+    split(frame_hsv, hsv_planes);
+}
+
+void cv_misc::fx::HSVHistogram::Compute(OutputArray output, InputArray mask) {
+    // const int histSize = 256;
+    // const float range[] = { 0, 256 } ;
+    // const float* histRange = { range };
+    // Mat b_hist, g_hist, r_hist;
+    // calcHist(&bgr_planes[0], 1, 0, noArray(), b_hist, 1, &histSize, &histRange);
+    // calcHist(&bgr_planes[1], 1, 0, noArray(), g_hist, 1, &histSize, &histRange);
+    // calcHist(&bgr_planes[2], 1, 0, noArray(), r_hist, 1, &histSize, &histRange);
+
+    // // Draw the global histograms for B, G and R
+    // float bin_w = (double)width / histSize;
+    // Mat histImage(height, width, CV_8UC3, Scalar(0,0,0));
+
+    // // Normalize the result
+    // double mb = norm(b_hist, NORM_INF),
+    //     mg = norm(g_hist, NORM_INF),
+    //     mr = norm(r_hist, NORM_INF);
+    // double max_count = max({mb, mg, mr});
+    // b_hist = b_hist / max_count * histImage.rows;
+    // g_hist = g_hist / max_count * histImage.rows;
+    // r_hist = r_hist / max_count * histImage.rows;
+    
+    // // Draw for each channel
+    // float _alpha = mask.empty()?1.0f:this->alpha;
+    // for(int i = 1;i < histSize;i++){
+    //     line( histImage, Point( bin_w*(i-1), height - cvRound(b_hist.at<float>(i-1)) ) ,
+    //                     Point( bin_w*(i), height - cvRound(b_hist.at<float>(i)) ),
+    //                     Scalar( 0, 0, 255*_alpha), 2, 8, 0  );
+    //     line( histImage, Point( bin_w*(i-1), height - cvRound(g_hist.at<float>(i-1)) ) ,
+    //                     Point( bin_w*(i), height - cvRound(g_hist.at<float>(i)) ),
+    //                     Scalar( 0, 255*_alpha, 0), 2, 8, 0  );
+    //     line( histImage, Point( bin_w*(i-1), height - cvRound(r_hist.at<float>(i-1)) ) ,
+    //                     Point( bin_w*(i), height - cvRound(r_hist.at<float>(i)) ),
+    //                     Scalar( 255*_alpha, 0, 0), 2, 8, 0  );
+    // }
+
+    // if (!mask.empty()) {
+    //     calcHist(&bgr_planes[0], 1, 0, mask, b_hist, 1, &histSize, &histRange);
+    //     calcHist(&bgr_planes[1], 1, 0, mask, g_hist, 1, &histSize, &histRange);
+    //     calcHist(&bgr_planes[2], 1, 0, mask, r_hist, 1, &histSize, &histRange);
+    //     if (normalize_component) {
+    //         normalize(b_hist, b_hist, 0, histImage.rows, NORM_MINMAX, -1, noArray());
+    //         normalize(g_hist, g_hist, 0, histImage.rows, NORM_MINMAX, -1, noArray());
+    //         normalize(r_hist, r_hist, 0, histImage.rows, NORM_MINMAX, -1, noArray());
+    //     }
+    //     else {
+    //         b_hist = b_hist / max_count * histImage.rows;
+    //         g_hist = g_hist / max_count * histImage.rows;
+    //         r_hist = r_hist / max_count * histImage.rows;
+    //     }
+    //     for(int i = 1;i < histSize;i++){
+    //         line( histImage, Point( bin_w*(i-1), height - cvRound(b_hist.at<float>(i-1)) ) ,
+    //                         Point( bin_w*(i), height - cvRound(b_hist.at<float>(i)) ),
+    //                         Scalar( 0, 0, 255), 2, 8, 0  );
+    //         line( histImage, Point( bin_w*(i-1), height - cvRound(g_hist.at<float>(i-1)) ) ,
+    //                         Point( bin_w*(i), height - cvRound(g_hist.at<float>(i)) ),
+    //                         Scalar( 0, 255, 0), 2, 8, 0  );
+    //         line( histImage, Point( bin_w*(i-1), height - cvRound(r_hist.at<float>(i-1)) ) ,
+    //                         Point( bin_w*(i), height - cvRound(r_hist.at<float>(i)) ),
+    //                         Scalar( 255, 0, 0), 2, 8, 0  );
+    //     }
+    // }
+    // output.assign(histImage);
 }
