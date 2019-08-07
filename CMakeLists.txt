@@ -111,6 +111,32 @@ target_link_libraries(superpixel_analyzer imgui ${SOIL_LIBRARY} ${GLFW_LIBRARIES
     opencv_video
 )
 
+# Superpixel Processor
+add_executable(superpixel_process
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/process.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/superpixel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dcnn.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/misc_ocv.cpp
+)
+if(CUDA_FOUND)
+    target_compile_definitions(superpixel_process PUBLIC HAS_LIBGSLIC)
+    target_link_libraries(superpixel_process gSLICr)
+endif()
+if(TENSORFLOW_FOUND)
+    target_include_directories(superpixel_process PUBLIC ${TensorFlow_INCLUDE_DIR})
+    target_link_libraries(superpixel_process -Wl,--allow-multiple-definition -Wl,--whole-archive ${TensorFlow_C_LIBRARY} -Wl,--no-whole-archive)
+    target_link_libraries(superpixel_process -Wl,--allow-multiple-definition -Wl,--whole-archive ${TensorFlow_LIBRARY} -Wl,--no-whole-archive)
+endif()
+target_link_libraries(superpixel_process
+    opencv_core
+    opencv_dnn
+    opencv_imgproc
+    opencv_ximgproc
+    opencv_imgcodecs
+    opencv_videoio
+    opencv_video
+)
+
 # gSLIC Demo
 add_executable(gslic_demo
     ${CMAKE_CURRENT_SOURCE_DIR}/demos/gslic.cpp
