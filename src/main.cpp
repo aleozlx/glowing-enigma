@@ -8,6 +8,8 @@
 #include "superpixel.hpp"
 #include "dcnn.hpp"
 
+#include <opencv2/cudaimgproc.hpp>
+
 const unsigned int WIDTH = 432;
 const unsigned int HEIGHT = 240;
 
@@ -261,9 +263,9 @@ class PipelineSettingsWindow: public IStaticWindow {
     }
 };
 
-class MomentsWindow: public IWindow {
+class MeanshiftWindow: public IWindow {
     public:
-    MomentsWindow(int frame_width, int frame_height, CameraInfo *_camera_info):
+    MeanshiftWindow(int frame_width, int frame_height, CameraInfo *_camera_info):
         io(ImGui::GetIO()),
         width(frame_width),
         height(frame_height),
@@ -271,7 +273,7 @@ class MomentsWindow: public IWindow {
         cam(_camera_info->id, frame_width, frame_height)
     {
         std::string id = _camera_info->name;
-        std::snprintf(_title, IM_ARRAYSIZE(_title), "Superpixel Analyzer [%s]", id.c_str());
+        std::snprintf(_title, IM_ARRAYSIZE(_title), "Mean-shift [%s]", id.c_str());
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
     }
 
@@ -286,8 +288,7 @@ class MomentsWindow: public IWindow {
         width = frame_size.width;
         height = frame_size.height;
         channels = 3;
-
-        
+        imMain = TexImage(width, height, channels);
         this->_is_shown = true;
         return dynamic_cast<IWindow*>(this);
     }
@@ -296,6 +297,15 @@ class MomentsWindow: public IWindow {
         if (!this->_is_shown) return false;
         ImGui::Begin(this->_title, &this->_is_shown);
         cam.capture >> frame;
+        cv::cvtColor(frame, frame_rgb, cv::COLOR_BGR2RGB);
+
+#ifdef HAS_CUDA
+        cv::Mat meanshift_out;
+        cv::cuda::meanShiftSegmentation(frame, meanshift_out, 7, 5, 20);
+#endif
+        
+        imMain.Load(frame_rgb.data);
+        ImGui::Image(imMain.id(), imMain.size(), ImVec2(0,0), ImVec2(1,1), ImVec4(1.0f,1.0f,1.0f,1.0f), ImVec4(1.0f,1.0f,1.0f,0.5f));
 
         ImGui::End();
         return true;
@@ -304,19 +314,20 @@ class MomentsWindow: public IWindow {
     protected:
     ImGuiIO& io;
     int width, height, channels;
+    TexImage imMain;
     CameraInfo *_camera_info;
     Camera cam;
 
     bool _is_shown = false;
     char _title[64];
 
-    cv::Mat frame;
+    cv::Mat frame, frame_rgb;
 };
 
-class MomentsExperiment: public IStaticWindow {
+class MeanshiftExperiment: public IStaticWindow {
     public:
     bool Draw() override {
-        ImGui::Begin("Moments Experiment");
+        ImGui::Begin("Meanshift Experiment");
         static CameraInfo *d_camera_current = &cameras[0];
         if(ImGui::TreeNode("Video Feed") && cameras.size()>0) {
             if (ImGui::BeginCombo("Source", d_camera_current->name.c_str())) {
@@ -336,7 +347,7 @@ class MomentsExperiment: public IStaticWindow {
 
         if(ImGui::Button("Initialize")) {
             if (d_camera_current->Acquire()) {
-                auto w = std::make_unique<MomentsWindow>(WIDTH, HEIGHT, d_camera_current);
+                auto w = std::make_unique<MeanshiftWindow>(WIDTH, HEIGHT, d_camera_current);
                 if (w->Show() != nullptr)
                     windows.push_back(std::move(w));
             }
@@ -519,7 +530,7 @@ int main(int, char**) {
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     cameras = cv_misc::camera_enumerate2();
     windows.push_back(std::make_unique<PipelineSettingsWindow>());
-    // windows.push_back(std::make_unique<MomentsExperiment>());
+    windows.push_back(std::make_unique<MeanshiftExperiment>());
 
     while (app.EventLoop()){
         for (auto w = windows.begin(); w != windows.end();) {
