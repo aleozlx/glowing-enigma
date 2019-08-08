@@ -46,7 +46,7 @@ target_compile_definitions(imgui PUBLIC IMGUI_DISABLE_INCLUDE_IMCONFIG_H)
 
 # gSLIC Library (optional)
 if(CUDA_FOUND)
-    set(CFLAGS_WARN "-Wall -Wextra -Wno-unused-parameter -Wno-strict-aliasing -Wno-misleading-indentation")
+    set(CFLAGS_WARN "-Wall -Wextra -Wno-unused-parameter -Wno-strict-aliasing")
     set(CMAKE_CXX_FLAGS "-fPIC -O3 -march=native ${CFLAGS_WARN} ${CMAKE_CXX_FLAGS}")
     include_directories(${CUDA_INCLUDE_DIRS})
     include_directories(${OpenCV_INCLUDE_DIRS})

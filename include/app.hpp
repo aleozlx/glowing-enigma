@@ -61,14 +61,14 @@ class IStaticWindow: public IWindow {
     virtual IWindow* Show() override {
         return dynamic_cast<IWindow*>(this);
     }
-    virtual bool Draw() = 0;
+    virtual bool Draw() override = 0;
     virtual ~IStaticWindow() {}
 };
 
 // TODO Consider visitor pattern?
 // Provides a data binding interface for ImGui
 template <typename Tdst>
-class IBinding final {
+class IBinding {
     public:
     virtual Tdst Export() const = 0;
     virtual void Import(const Tdst &dst) = 0;
