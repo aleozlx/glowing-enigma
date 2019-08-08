@@ -32,7 +32,7 @@ int main(int, char**) {
     cv::Size frame_size = frame.size();
     int width=frame_size.width, height=frame_size.height, channels=3;
     TexImage imSuperpixels(width, height, channels);
-
+#ifdef HAS_LIBGSLIC
     GSLIC _superpixel({
         .img_size = { width, height },
         .no_segs = 64,
@@ -43,7 +43,7 @@ int main(int, char**) {
         .color_space = gSLICr::XYZ, // gSLICr::CIELAB | gSLICr::RGB
         .seg_method = gSLICr::GIVEN_SIZE // gSLICr::GIVEN_NUM
     });
-
+#endif
     // Main loop
     while (!glfwWindowShouldClose(window)){
         glfwPollEvents();
@@ -53,9 +53,11 @@ int main(int, char**) {
         {
             ImGui::Begin("Superpixel Analyzer");
             cam.capture >> frame;
+#ifdef HAS_LIBGSLIC
             ISuperpixel* superpixel = _superpixel.Compute(frame);
             superpixel->GetContour(superpixel_contour);
             cv::cvtColor(frame, frame, cv::COLOR_BGR2RGB);
+#endif
             frame.setTo(cv::Scalar(200, 5, 240), superpixel_contour);
             imSuperpixels.Load(frame.data);
             ImGui::Image(imSuperpixels.id(), imSuperpixels.size(), ImVec2(0,0), ImVec2(1,1), ImVec4(1.0f,1.0f,1.0f,1.0f), ImVec4(1.0f,1.0f,1.0f,0.5f));
