@@ -219,23 +219,23 @@ struct Chipping {
     int chip_width, chip_height;
     int nx, ny, nchip;
 
+    Chipping() { }
+
     Chipping(cv::Size input_size, cv::Size chip_size) {
         width = input_size.width;
         height = input_size.height;
         chip_width = chip_size.width;
         chip_height = chip_size.height;
-        nx = gdiv(width, chip_width);
-        ny = gdiv(height, chip_height);
+        nx = width / chip_width;
+        ny = height / chip_height;
         nchip = nx * ny;
     }
 
     cv::Rect GetROI(int chip_id) {
         // TODO add optional overlap
-        int offset_x = chip_id / ny;
-        int offset_y = chip_id % ny;
-        std::cout<<"offset "<<offset_x<<"x"<<offset_y<<std::endl;
-        
-        return cv::Rect(offset_x, offset_y, offset_x+chip_width, offset_y+chip_height);
+        int offset_x = chip_id % nx * chip_height;
+        int offset_y = chip_id / nx * chip_width;
+        return cv::Rect(offset_x, offset_y, chip_width, chip_height);
     }
 };
 
@@ -257,14 +257,8 @@ class SuperpixelAnalyzerWindow2: public IWindow {
         frame_raw = cv::imread(fname, cv::IMREAD_COLOR);
         cv::Size real_size = frame_raw.size();
 
-        // TODO move superpixel pipeline to Draw and add chipping GUI.
-
-        // Chip it down to 256x256
-        Chipping chips(real_size, cv::Size(256, 256));
-        int chip_id = 20;
-        cv::Rect roi = chips.GetROI(chip_id);
-        std::cout<<"roi "<<roi.x<<"x"<<roi.y<<std::endl;
-        frame = frame_raw(roi);
+        chips = Chipping(real_size, cv::Size(width, height));
+        frame = frame_raw(chips.GetROI(0));
 
         // double fit_width = ((double)width) / real_size.width;
         // double fit_height = ((double)height) / real_size.height;
@@ -273,8 +267,8 @@ class SuperpixelAnalyzerWindow2: public IWindow {
         cv::Size frame_size = frame.size();
         width = frame_size.width;
         height = frame_size.height;
-        std::cout<<"imread "<<width<<"x"<<height<<std::endl;
         channels = 3;
+        std::cout<<"processing size "<<width<<"x"<<height<<std::endl;
         imSuperpixels = TexImage(width, height, channels);
         imHistogram = TexImage(width - 20, height, channels);
 #ifdef HAS_LIBGSLIC
@@ -285,16 +279,13 @@ class SuperpixelAnalyzerWindow2: public IWindow {
             .no_iters = 5,
             .coh_weight = 0.6f,
             .do_enforce_connectivity = true,
-            .color_space = gSLICr::XYZ, // gSLICr::CIELAB | gSLICr::RGB
+            .color_space = gSLICr::CIELAB, // gSLICr::XYZ | gSLICr::RGB
             .seg_method = gSLICr::GIVEN_SIZE // gSLICr::GIVEN_NUM
         });
 #else
         _superpixel = OpenCVSLIC(superpixel_size, 30.0f, 3, 10.0f);
 #endif
         
-        this->superpixel = _superpixel.Compute(frame);
-        superpixel->GetLabels(superpixel_labels);
-
         // dcnn.Summary();
         // dcnn.NewSession();
         
@@ -305,7 +296,10 @@ class SuperpixelAnalyzerWindow2: public IWindow {
     bool Draw() override {
         if (!this->_is_shown) return false;
         ImGui::Begin(this->_title, &this->_is_shown);
-
+        ImGui::SliderInt("Chip id", &d_chip_id, 0, chips.nchip-1);
+        frame = frame_raw(chips.GetROI(d_chip_id));
+        this->superpixel = _superpixel.Compute(frame);
+        superpixel->GetLabels(superpixel_labels);
         cv::cvtColor(frame, frame_rgb, cv::COLOR_BGR2RGB);
         frame_dcnn = frame_rgb.clone();
 
@@ -436,6 +430,8 @@ class SuperpixelAnalyzerWindow2: public IWindow {
     SuperpixelSelection sel = {SuperpixelSelection::Mode::Contour};
     bool use_magnifier = false;
     bool normalize_component = true;
+    int d_chip_id = 0;
+    Chipping chips;
 
     cv::Mat frame_raw, frame, frame_rgb, frame_dcnn;
     cv::Mat superpixel_contour, superpixel_labels, superpixel_selected;
