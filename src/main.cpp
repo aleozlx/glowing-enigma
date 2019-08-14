@@ -230,6 +230,7 @@ struct Chipping {
     }
 
     cv::Rect GetROI(int chip_id) {
+        // TODO add optional overlap
         int offset_x = chip_id / ny;
         int offset_y = chip_id % ny;
         std::cout<<"offset "<<offset_x<<"x"<<offset_y<<std::endl;
@@ -255,6 +256,8 @@ class SuperpixelAnalyzerWindow2: public IWindow {
     IWindow* Show() override {
         frame_raw = cv::imread(fname, cv::IMREAD_COLOR);
         cv::Size real_size = frame_raw.size();
+
+        // TODO move superpixel pipeline to Draw and add chipping GUI.
 
         // Chip it down to 256x256
         Chipping chips(real_size, cv::Size(256, 256));
