@@ -20,6 +20,7 @@ find_package(CUDA 10)
 
 # More Packages
 find_package(Boost)
+find_package(Spfreq2)
 
 # Feature definitions
 add_definitions("-DVER_OPENCV=${OpenCV_VERSION}")

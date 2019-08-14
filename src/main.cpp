@@ -286,8 +286,8 @@ class SuperpixelAnalyzerWindow2: public IWindow {
         _superpixel = OpenCVSLIC(superpixel_size, 30.0f, 3, 10.0f);
 #endif
         
-        // dcnn.Summary();
-        // dcnn.NewSession();
+        dcnn.Summary();
+        dcnn.NewSession();
         
         this->_is_shown = true;
         return dynamic_cast<IWindow*>(this);
