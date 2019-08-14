@@ -49,7 +49,7 @@ bool TensorFlowInference::NewSession() {
 
 
 VGG16::VGG16():
-    TensorFlowInference("/tank/datasets/research/model_weights/vgg16.frozen.pb")
+    TensorFlowInference("/tank/datasets/research/model_weights/vgg16spo.frozen.pb")
 {
     // TODO fix this
     SetInputResolution(256, 256);

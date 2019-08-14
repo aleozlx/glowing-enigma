@@ -102,7 +102,7 @@ if(TENSORFLOW_FOUND)
     target_link_libraries(superpixel_analyzer -Wl,--allow-multiple-definition -Wl,--whole-archive ${TensorFlow_LIBRARY} -Wl,--no-whole-archive)
 endif()
 target_include_directories(superpixel_analyzer PUBLIC ${root}/examples)
-target_link_libraries(superpixel_analyzer imgui ${SOIL_LIBRARY} ${GLFW_LIBRARIES} ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES}
+target_link_libraries(superpixel_analyzer imgui ${SPFREQ2_LIBRARIES} ${SOIL_LIBRARY} ${GLFW_LIBRARIES} ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES}
     opencv_core
     opencv_dnn
     opencv_imgproc
