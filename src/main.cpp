@@ -79,8 +79,6 @@ class SuperpixelAnalyzerWindow: public IWindow {
         superpixel_selected = superpixel_labels == superpixel_id;
         switch (sel.mode) {
             case SuperpixelSelection::Mode::None:
-            superpixel->GetContour(superpixel_contour);
-            frame_rgb.setTo(cv::Scalar(200, 5, 240), superpixel_contour);
             break;
 
             case SuperpixelSelection::Mode::Spotlight:
@@ -211,12 +209,42 @@ class SuperpixelAnalyzerWindow: public IWindow {
     
 };
 
+template <typename SIZE>
+SIZE gdiv(SIZE a, SIZE b) {
+    return (a + b - 1) / b;
+}
+
+struct Chipping {
+    int width, height;
+    int chip_width, chip_height;
+    int nx, ny, nchip;
+
+    Chipping(cv::Size input_size, cv::Size chip_size) {
+        width = input_size.width;
+        height = input_size.height;
+        chip_width = chip_size.width;
+        chip_height = chip_size.height;
+        nx = gdiv(width, chip_width);
+        ny = gdiv(height, chip_height);
+        nchip = nx * ny;
+    }
+
+    cv::Rect GetROI(int chip_id) {
+        int offset_x = chip_id / ny;
+        int offset_y = chip_id % ny;
+        std::cout<<"offset "<<offset_x<<"x"<<offset_y<<std::endl;
+        
+        return cv::Rect(offset_x, offset_y, offset_x+chip_width, offset_y+chip_height);
+    }
+};
+
 class SuperpixelAnalyzerWindow2: public IWindow {
     public:
-    SuperpixelAnalyzerWindow2(int frame_width, int frame_height, std::string fname):
+    SuperpixelAnalyzerWindow2(int frame_width, int frame_height, std::string fname, float superpixel_size):
         io(ImGui::GetIO()),
         width(frame_width),
-        height(frame_height)
+        height(frame_height),
+        superpixel_size(superpixel_size)
     {
         this->fname = fname;
         std::string id = "xView";
@@ -225,20 +253,20 @@ class SuperpixelAnalyzerWindow2: public IWindow {
     }
 
     IWindow* Show() override {
-        // TODO load frame
+        frame_raw = cv::imread(fname, cv::IMREAD_COLOR);
+        cv::Size real_size = frame_raw.size();
 
-        // if (!cam.open()) {
-        //     // Cannot receive video feed
-        //     this->_is_shown = false;
-        //     return nullptr;
-        // }
-        // cam.capture >> frame;
-        frame = cv::imread(fname, cv::IMREAD_COLOR);
-        cv::Size real_size = frame.size();
-        double fit_width = ((double)width) / real_size.width;
-        double fit_height = ((double)height) / real_size.height;
-        this->resize_factor = std::min(fit_width, fit_height);
-        cv::resize(frame, frame, cv::Size(), resize_factor, resize_factor, cv::INTER_AREA);
+        // Chip it down to 256x256
+        Chipping chips(real_size, cv::Size(256, 256));
+        int chip_id = 20;
+        cv::Rect roi = chips.GetROI(chip_id);
+        std::cout<<"roi "<<roi.x<<"x"<<roi.y<<std::endl;
+        frame = frame_raw(roi);
+
+        // double fit_width = ((double)width) / real_size.width;
+        // double fit_height = ((double)height) / real_size.height;
+        // this->resize_factor = std::min(fit_width, fit_height);
+        // cv::resize(frame, frame, cv::Size(), resize_factor, resize_factor, cv::INTER_AREA);
         cv::Size frame_size = frame.size();
         width = frame_size.width;
         height = frame_size.height;
@@ -250,7 +278,7 @@ class SuperpixelAnalyzerWindow2: public IWindow {
         _superpixel = GSLIC({
             .img_size = { width, height },
             .no_segs = 64,
-            .spixel_size = 32,
+            .spixel_size = superpixel_size,
             .no_iters = 5,
             .coh_weight = 0.6f,
             .do_enforce_connectivity = true,
@@ -258,7 +286,7 @@ class SuperpixelAnalyzerWindow2: public IWindow {
             .seg_method = gSLICr::GIVEN_SIZE // gSLICr::GIVEN_NUM
         });
 #else
-        _superpixel = OpenCVSLIC(32, 30.0f, 3, 10.0f);
+        _superpixel = OpenCVSLIC(superpixel_size, 30.0f, 3, 10.0f);
 #endif
         
         this->superpixel = _superpixel.Compute(frame);
@@ -282,8 +310,6 @@ class SuperpixelAnalyzerWindow2: public IWindow {
         superpixel_selected = superpixel_labels == superpixel_id;
         switch (sel.mode) {
             case SuperpixelSelection::Mode::None:
-            superpixel->GetContour(superpixel_contour);
-            frame_rgb.setTo(cv::Scalar(200, 5, 240), superpixel_contour);
             break;
 
             case SuperpixelSelection::Mode::Spotlight:
@@ -402,12 +428,13 @@ class SuperpixelAnalyzerWindow2: public IWindow {
     bool _is_shown = false;
     char _title[64];
     int pointer_x = 0, pointer_y = 0;
+    float superpixel_size = 0;
     unsigned int superpixel_id = 0;
     SuperpixelSelection sel = {SuperpixelSelection::Mode::Contour};
     bool use_magnifier = false;
     bool normalize_component = true;
 
-    cv::Mat frame, frame_rgb, frame_dcnn;
+    cv::Mat frame_raw, frame, frame_rgb, frame_dcnn;
     cv::Mat superpixel_contour, superpixel_labels, superpixel_selected;
     std::vector<std::vector<cv::Point>> superpixel_sel_contour;
     cv::Moments superpixel_moments;
@@ -486,9 +513,9 @@ class DatasetWindow: public IStaticWindow {
             ImGui::TreePop();
         }
 
+        static float d_superpixel_size = 32.0f;
 #ifdef HAS_LIBGSLIC // with gSLIC, it is not efficient to use different superpixel sizes over time
-        if(ImGui::TreeNode("Superpixels")) {
-            static float d_superpixel_size = 32.0f;
+        if(ImGui::TreeNode("Superpixels")) { 
             ImGui::SliderFloat("Superpixel Size", &d_superpixel_size, 15.0f, 80.0f);
             ImGui::TreePop();
         }
@@ -496,7 +523,7 @@ class DatasetWindow: public IStaticWindow {
         ImGui::Separator();
 
         if(ImGui::Button("Initialize")) {
-            auto w = std::make_unique<SuperpixelAnalyzerWindow2>(860, 860, "/tank/datasets/research/xView/train_images/1036.tif");
+            auto w = std::make_unique<SuperpixelAnalyzerWindow2>(400, 400, "/tank/datasets/research/xView/train_images/1036.tif", d_superpixel_size);
             if (w->Show() != nullptr)
                 windows.push_back(std::move(w));
         }
