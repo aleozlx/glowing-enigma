@@ -42,7 +42,7 @@ class SuperpixelAnalyzerWindow: public IWindow {
         channels = 3;
         imSuperpixels = TexImage(width, height, channels);
         imHistogram = TexImage(width - 20, height, channels);
-#ifdef HAS_LIBGSLIC
+        #ifdef HAS_LIBGSLIC
         _superpixel = GSLIC({
             .img_size = { width, height },
             .no_segs = 64,
@@ -53,9 +53,9 @@ class SuperpixelAnalyzerWindow: public IWindow {
             .color_space = gSLICr::XYZ, // gSLICr::CIELAB | gSLICr::RGB
             .seg_method = gSLICr::GIVEN_SIZE // gSLICr::GIVEN_NUM
         });
-#else
+        #else
         _superpixel = OpenCVSLIC(32, 30.0f, 3, 10.0f);
-#endif
+        #endif
         dcnn.Summary();
         dcnn.NewSession();
         
@@ -69,11 +69,11 @@ class SuperpixelAnalyzerWindow: public IWindow {
         cam.capture >> frame;
         cv::cvtColor(frame, frame_rgb, cv::COLOR_BGR2RGB);
         frame_dcnn = frame_rgb.clone();
-#ifdef HAS_LIBGSLIC
+        #ifdef HAS_LIBGSLIC
         ISuperpixel* superpixel = _superpixel.Compute(frame);
-#else
+        #else
         ISuperpixel* superpixel = _superpixel.Compute(frame);
-#endif
+        #endif
         superpixel->GetLabels(superpixel_labels);
         superpixel_id = superpixel_labels.at<unsigned int>(pointer_y, pointer_x);
         superpixel_selected = superpixel_labels == superpixel_id;
@@ -118,9 +118,9 @@ class SuperpixelAnalyzerWindow: public IWindow {
                 ImGui::EndTooltip();
             }
         }
-#ifndef HAS_LIBGSLIC // with OpenCV SLIC, it is possible to use different superpixel sizes over time
+        #ifndef HAS_LIBGSLIC // with OpenCV SLIC, it is possible to use different superpixel sizes over time
         ImGui::SliderFloat("Superpixel Size", &_superpixel.superpixel_size, 15.0f, 80.0f);
-#endif
+        #endif
         ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
         ImGui::Checkbox("Magnifier", &use_magnifier);
         if (ImGui::RadioButton("None", sel.mode == SuperpixelSelection::Mode::None)) {
@@ -186,11 +186,11 @@ class SuperpixelAnalyzerWindow: public IWindow {
     Camera cam;
     TexImage imSuperpixels;
     TexImage imHistogram;
-#ifdef HAS_LIBGSLIC
+    #ifdef HAS_LIBGSLIC
     GSLIC _superpixel;
-#else
+    #else
     OpenCVSLIC _superpixel;
-#endif
+    #endif
     VGG16 dcnn;
 
     bool _is_shown = false;
@@ -271,7 +271,7 @@ class SuperpixelAnalyzerWindow2: public IWindow {
         std::cout<<"processing size "<<width<<"x"<<height<<std::endl;
         imSuperpixels = TexImage(width, height, channels);
         imHistogram = TexImage(width - 20, height, channels);
-#ifdef HAS_LIBGSLIC
+        #ifdef HAS_LIBGSLIC
         _superpixel = GSLIC({
             .img_size = { width, height },
             .no_segs = 64,
@@ -282,9 +282,9 @@ class SuperpixelAnalyzerWindow2: public IWindow {
             .color_space = gSLICr::CIELAB, // gSLICr::XYZ | gSLICr::RGB
             .seg_method = gSLICr::GIVEN_SIZE // gSLICr::GIVEN_NUM
         });
-#else
+        #else
         _superpixel = OpenCVSLIC(superpixel_size, 30.0f, 3, 10.0f);
-#endif
+        #endif
         
         dcnn.Summary();
         dcnn.NewSession();
@@ -346,9 +346,9 @@ class SuperpixelAnalyzerWindow2: public IWindow {
                 ImGui::EndTooltip();
             }
         }
-#ifndef HAS_LIBGSLIC // with OpenCV SLIC, it is possible to use different superpixel sizes over time
+        #ifndef HAS_LIBGSLIC // with OpenCV SLIC, it is possible to use different superpixel sizes over time
         ImGui::SliderFloat("Superpixel Size", &_superpixel.superpixel_size, 15.0f, 80.0f);
-#endif
+        #endif
         ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
         ImGui::Checkbox("Magnifier", &use_magnifier);
         if (ImGui::RadioButton("None", sel.mode == SuperpixelSelection::Mode::None)) {
@@ -414,11 +414,11 @@ class SuperpixelAnalyzerWindow2: public IWindow {
     double resize_factor;
     TexImage imSuperpixels;
     TexImage imHistogram;
-#ifdef HAS_LIBGSLIC
+    #ifdef HAS_LIBGSLIC
     GSLIC _superpixel;
-#else
+    #else
     OpenCVSLIC _superpixel;
-#endif
+    #endif
     ISuperpixel* superpixel;
     VGG16 dcnn;
 
@@ -470,13 +470,13 @@ class PipelineSettingsWindow: public IStaticWindow {
             ImGui::TreePop();
         }
 
-#ifdef HAS_LIBGSLIC // with gSLIC, it is not efficient to use different superpixel sizes over time
+        #ifdef HAS_LIBGSLIC // with gSLIC, it is not efficient to use different superpixel sizes over time
         if(ImGui::TreeNode("Superpixels")) {
             static float d_superpixel_size = 32.0f;
             ImGui::SliderFloat("Superpixel Size", &d_superpixel_size, 15.0f, 80.0f);
             ImGui::TreePop();
         }
-#endif
+        #endif
         ImGui::Separator();
 
         if(ImGui::Button("Initialize")) {
@@ -513,12 +513,12 @@ class DatasetWindow: public IStaticWindow {
         }
 
         static float d_superpixel_size = 32.0f;
-#ifdef HAS_LIBGSLIC // with gSLIC, it is not efficient to use different superpixel sizes over time
+        #ifdef HAS_LIBGSLIC // with gSLIC, it is not efficient to use different superpixel sizes over time
         if(ImGui::TreeNode("Superpixels")) { 
             ImGui::SliderFloat("Superpixel Size", &d_superpixel_size, 15.0f, 80.0f);
             ImGui::TreePop();
         }
-#endif
+        #endif
         ImGui::Separator();
 
         if(ImGui::Button("Initialize")) {
