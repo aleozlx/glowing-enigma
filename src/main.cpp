@@ -398,7 +398,7 @@ class SuperpixelAnalyzerWindow2: public IWindow {
         }
 
         if (ImGui::TreeNode("Superpixel DCNN Features")) {
-            dcnn.Compute(frame_dcnn);
+            dcnn.Compute(frame_dcnn, superpixel_labels);
             
             ImGui::TreePop();
         }
@@ -420,7 +420,7 @@ class SuperpixelAnalyzerWindow2: public IWindow {
     OpenCVSLIC _superpixel;
     #endif
     ISuperpixel* superpixel;
-    VGG16 dcnn;
+    VGG16SP dcnn;
 
     bool _is_shown = false;
     char _title[64];

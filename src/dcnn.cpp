@@ -2,9 +2,16 @@
 #ifdef HAS_TF
 namespace tf = tensorflow;
 
+#define MODEL_WEIGHTS "/tank/datasets/research/model_weights/"
+
 TensorFlowInference::TensorFlowInference(std::string const &graph_path) {
     tf::Status status = tf::ReadBinaryProto(tf::Env::Default(), graph_path, &graph);
-    this->_loaded = status.ok();
+    if ((this->_loaded = status.ok())) {
+        std::cerr << "Graph loaded " << graph_path << std::endl;
+    }
+    else {
+        std::cerr << "WARNING Cannot load graph " << graph_path << std::endl;
+    }
 }
 
 TensorFlowInference::~TensorFlowInference() {
@@ -14,7 +21,7 @@ TensorFlowInference::~TensorFlowInference() {
 
 void TensorFlowInference::Summary() {
     if (!_loaded) return;
-
+    std::cout << "Model Summary" << std::endl;
     for (int i = 0; i < graph.node_size(); i++) {
         auto const &node = graph.node(i);
         auto const &attr_map = node.attr();
@@ -35,8 +42,12 @@ void TensorFlowInference::Summary() {
                 std::cout << tf::DataTypeString(dtype_attr->second.type()) << ' ';
             }
             std::cout << graph.node(i).name() << " ]" << std::endl;
-        }           
+        }
+        else {
+            std::cout << "[ " << graph.node(i).name() << " ]" << std::endl;
+        }
     }
+    std::cout << "EOF Model Summary" << std::endl;
 }
 
 bool TensorFlowInference::NewSession() {
@@ -49,7 +60,7 @@ bool TensorFlowInference::NewSession() {
 
 
 VGG16::VGG16():
-    TensorFlowInference("/tank/datasets/research/model_weights/vgg16spo.frozen.pb")
+    TensorFlowInference(MODEL_WEIGHTS "vgg16.frozen.pb")
 {
     // TODO fix this
     SetInputResolution(256, 256);
@@ -88,4 +99,46 @@ void VGG16::Compute(cv::InputArray frame) {
     // std::cout << outputs[0].DebugString() << "\n"; // Tensor<type: float shape: [] values: 30>
     // std::cout << output_c() << "\n"; // 30
 }
+
+VGG16SP::VGG16SP():
+    TensorFlowInference(MODEL_WEIGHTS "vgg16spo.frozen.pb")
+{
+    // TODO fix this
+    SetInputResolution(256, 256);
+}
+
+void VGG16SP::SetInputResolution(unsigned int width, unsigned int height) {
+    this->input_shape = tf::TensorShape({1, height, width, 3});
+    this->input_tensor = tf::Tensor(tf::DT_UINT8, input_shape);
+    this->inputs = {
+        { "DataSource/Placeholder:0", input_tensor },
+    };
+}
+
+void VGG16SP::Compute(cv::InputArray frame, cv::InputArray superpixels) {
+    if(!session) return;
+
+    cv::Mat image;
+    // image.convertTo(image, CV_32FC3);
+    cv::resize(frame, image, cv::Size(256, 256));
+    
+    // * DOUBLE CHECK: SIZE TYPE CONTINUITY
+    CV_Assert(image.type() == CV_8UC3);
+    tf::StringPiece input_buffer = input_tensor.tensor_data();
+    std::memcpy(const_cast<char*>(input_buffer.data()), image.data, input_shape.num_elements() * sizeof(char));
+
+    tf::Status status = session->Run(inputs, {"DCNN/block5_pool/MaxPool:0"}, {}, &outputs);
+    if (!status.ok()) {
+        std::cout << status.ToString() << "\n";
+        return;
+    }
+
+    // https://github.com/tensorflow/tensorflow/blob/master/tensorflow/core/framework/tensor.h
+    // auto output_c = outputs[0].scalar<float>();
+    
+    // // Print the results
+    // std::cout << outputs[0].DebugString() << "\n"; // Tensor<type: float shape: [] values: 30>
+    // std::cout << output_c() << "\n"; // 30
+}
+
 #endif

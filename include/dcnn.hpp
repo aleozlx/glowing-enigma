@@ -20,13 +20,23 @@ class TensorFlowInference {
     virtual bool NewSession();
     virtual void Summary();
 
-    virtual void Compute(cv::InputArray frame) {}
+    // virtual void Compute(cv::InputArray frame) {}
 
     protected:
     bool _loaded;
 };
 
-class VGG16: public TensorFlowInference {
+class IComputeFrame {
+    public:
+    virtual void Compute(cv::InputArray frame) = 0;
+};
+
+class IComputeFrameSuperpixel {
+    public:
+    virtual void Compute(cv::InputArray frame, cv::InputArray superpixels) = 0;
+};
+
+class VGG16: public TensorFlowInference, public IComputeFrame {
     public:
     VGG16();
     void SetInputResolution(unsigned int width, unsigned int height);
@@ -35,6 +45,21 @@ class VGG16: public TensorFlowInference {
     protected:
     tensorflow::TensorShape input_shape;
     tensorflow::Tensor input_tensor;
+    std::vector<std::pair<std::string, tensorflow::Tensor>> inputs;
+    std::vector<tensorflow::Tensor> outputs;
+};
+
+class VGG16SP: public TensorFlowInference, public IComputeFrameSuperpixel {
+    public:
+    VGG16SP();
+    void SetInputResolution(unsigned int width, unsigned int height);
+    void Compute(cv::InputArray frame, cv::InputArray superpixels) override;
+
+    protected:
+    tensorflow::TensorShape input_shape;
+    tensorflow::Tensor input_tensor;
+    tensorflow::TensorShape superpixel_shape;
+    tensorflow::Tensor superpixel_tensor;
     std::vector<std::pair<std::string, tensorflow::Tensor>> inputs;
     std::vector<tensorflow::Tensor> outputs;
 };

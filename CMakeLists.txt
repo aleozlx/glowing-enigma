@@ -30,6 +30,9 @@ endif()
 if(TENSORFLOW_FOUND)
     add_definitions("-DHAS_TF=${TensorFlow_VERSION}")
 endif()
+if(SPFREQ2_FOUND)
+    add_definitions("-DHAS_SPFREQ2=${Spfreq2_VERSION}")
+endif()
 
 # ImGui Library
 set(root ${CMAKE_CURRENT_SOURCE_DIR}/imgui)
