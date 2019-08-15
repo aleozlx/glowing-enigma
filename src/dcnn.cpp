@@ -101,7 +101,7 @@ void VGG16::Compute(cv::InputArray frame) {
 }
 
 VGG16SP::VGG16SP():
-    TensorFlowInference(MODEL_WEIGHTS "vgg16spo.frozen.pb")
+    TensorFlowInference(MODEL_WEIGHTS "vgg16sp.frozen.pb")
 {
     // TODO fix this
     SetInputResolution(256, 256);
@@ -110,35 +110,44 @@ VGG16SP::VGG16SP():
 void VGG16SP::SetInputResolution(unsigned int width, unsigned int height) {
     this->input_shape = tf::TensorShape({1, height, width, 3});
     this->input_tensor = tf::Tensor(tf::DT_UINT8, input_shape);
+    this->superpixel_shape = tf::TensorShape({1, height, width});
+    this->superpixel_tensor = tf::Tensor(tf::DT_INT32, superpixel_shape);
     this->inputs = {
-        { "DataSource/Placeholder:0", input_tensor },
+        { "DataSource/input_image:0", input_tensor },
+        { "DataSource/input_superpixels:0", superpixel_tensor },
     };
 }
 
 void VGG16SP::Compute(cv::InputArray frame, cv::InputArray superpixels) {
     if(!session) return;
 
-    cv::Mat image;
+    cv::Mat image, _superpixels;
     // image.convertTo(image, CV_32FC3);
     cv::resize(frame, image, cv::Size(256, 256));
+    // std::cout<<"resize1"<<std::endl;
+    // TODO it is difficult to efficiently resize an int array, fixing at 256x256 for now
+    // CV_Assert(superpixels.type() == CV_32SC1);
+    // std::cout<<"superpixel input size "<< superpixels.cols() <<" "<< superpixels.rows() <<std::endl;
+    // cv::resize(superpixels, _superpixels, cv::Size(256, 256), 0, 0, cv::INTER_LINEAR);
+    // std::cout<<"resize2"<<std::endl;
+    _superpixels = superpixels.getMat();
     
     // * DOUBLE CHECK: SIZE TYPE CONTINUITY
     CV_Assert(image.type() == CV_8UC3);
     tf::StringPiece input_buffer = input_tensor.tensor_data();
     std::memcpy(const_cast<char*>(input_buffer.data()), image.data, input_shape.num_elements() * sizeof(char));
+    CV_Assert(_superpixels.type() == CV_32SC1);
+    tf::StringPiece superpixel_buffer = superpixel_tensor.tensor_data();
+    std::memcpy(const_cast<char*>(superpixel_buffer.data()), _superpixels.data, superpixel_shape.num_elements() * sizeof(int));
 
-    tf::Status status = session->Run(inputs, {"DCNN/block5_pool/MaxPool:0"}, {}, &outputs);
+    tf::Status status = session->Run(inputs, {"Superpixels/MatMul:0"}, {}, &outputs);
     if (!status.ok()) {
         std::cout << status.ToString() << "\n";
         return;
     }
 
-    // https://github.com/tensorflow/tensorflow/blob/master/tensorflow/core/framework/tensor.h
-    // auto output_c = outputs[0].scalar<float>();
-    
-    // // Print the results
-    // std::cout << outputs[0].DebugString() << "\n"; // Tensor<type: float shape: [] values: 30>
-    // std::cout << output_c() << "\n"; // 30
+    // Output has shape [S, K]
+    // std::cout << outputs[0].DebugString() << "\n";
 }
 
 #endif

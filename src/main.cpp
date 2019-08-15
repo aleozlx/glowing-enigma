@@ -268,7 +268,7 @@ class SuperpixelAnalyzerWindow2: public IWindow {
         width = frame_size.width;
         height = frame_size.height;
         channels = 3;
-        std::cout<<"processing size "<<width<<"x"<<height<<std::endl;
+        std::cout<<"Superpixel processing size "<<width<<"x"<<height<<std::endl;
         imSuperpixels = TexImage(width, height, channels);
         imHistogram = TexImage(width - 20, height, channels);
         #ifdef HAS_LIBGSLIC
@@ -522,7 +522,7 @@ class DatasetWindow: public IStaticWindow {
         ImGui::Separator();
 
         if(ImGui::Button("Initialize")) {
-            auto w = std::make_unique<SuperpixelAnalyzerWindow2>(400, 400, "/tank/datasets/research/xView/train_images/1036.tif", d_superpixel_size);
+            auto w = std::make_unique<SuperpixelAnalyzerWindow2>(256, 256, "/tank/datasets/research/xView/train_images/1036.tif", d_superpixel_size);
             if (w->Show() != nullptr)
                 windows.push_back(std::move(w));
         }
