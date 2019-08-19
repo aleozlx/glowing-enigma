@@ -150,4 +150,21 @@ void VGG16SP::Compute(cv::InputArray frame, cv::InputArray superpixels) {
     // std::cout << outputs[0].DebugString() << "\n";
 }
 
+int VGG16SP::GetFeatureDim() const {
+    return 512;
+}
+
+int VGG16SP::GetNSP() const {
+    return 300;
+}
+
+void VGG16SP::GetFeature(int superpixel_id, float *output_array) const {
+    // Make a copy to detach the lifetime of the output feature array from the tensor.
+    
+    // std::cerr<<"tensor ptr "<<(const void*)outputs[0].flat<float>().data()<<" superpixel "<<superpixel_id<<std::endl;
+    const float *input_array = outputs[0].flat<float>().data() + superpixel_id * GetFeatureDim();
+    // std::cerr<<"memcpy "<<(const void*) input_array<<" >> "<<(void*)output_array<<std::endl;
+    std::memcpy(output_array, input_array, GetFeatureDim() * sizeof(float));
+}
+
 #endif

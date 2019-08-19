@@ -323,6 +323,12 @@ class SuperpixelAnalyzerWindow2: public IWindow {
         
         imSuperpixels.Load(frame_rgb.data);
         ImGui::Text("(%d, %d) => (%d,)", imSuperpixels.width, imSuperpixels.height, superpixel->GetNumSuperpixels());
+        // superpixel_id bound check
+        if(superpixel_id>=superpixel->GetNumSuperpixels()) {
+            // ! BUG
+            std::cerr<<"Resetting superpixel_id because it is out of bound"<<std::endl;
+            superpixel_id = 0;
+        }
         ImVec2 pos = ImGui::GetCursorScreenPos();
         ImGui::Image(imSuperpixels.id(), imSuperpixels.size(), ImVec2(0,0), ImVec2(1,1), ImVec4(1.0f,1.0f,1.0f,1.0f), ImVec4(1.0f,1.0f,1.0f,0.5f));
         if (ImGui::IsItemHovered()) {
@@ -399,7 +405,9 @@ class SuperpixelAnalyzerWindow2: public IWindow {
 
         if (ImGui::TreeNode("Superpixel DCNN Features")) {
             dcnn.Compute(frame_dcnn, superpixel_labels);
-            
+            superpixel_feature_buffer.resize(dcnn.GetFeatureDim());
+            dcnn.GetFeature(superpixel_id, superpixel_feature_buffer.data());
+            ImGui::PlotLines("Feature", superpixel_feature_buffer.data(), dcnn.GetFeatureDim(), 0, "", -1.0f, 1.0f, ImVec2(320, 200));
             ImGui::TreePop();
         }
 
@@ -438,7 +446,7 @@ class SuperpixelAnalyzerWindow2: public IWindow {
     std::vector<std::vector<cv::Point>> superpixel_sel_contour;
     cv::Moments superpixel_moments;
     cv::Mat histogram_rgb;
-    
+    std::vector<float> superpixel_feature_buffer;
 };
 
 std::vector<CameraInfo> cameras;

@@ -54,6 +54,9 @@ class VGG16SP: public TensorFlowInference, public IComputeFrameSuperpixel {
     VGG16SP();
     void SetInputResolution(unsigned int width, unsigned int height);
     void Compute(cv::InputArray frame, cv::InputArray superpixels) override;
+    int GetFeatureDim() const;
+    int GetNSP() const;
+    void GetFeature(int superpixel_id, float *output_array) const;
 
     protected:
     tensorflow::TensorShape input_shape;
