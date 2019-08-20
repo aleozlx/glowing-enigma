@@ -45,6 +45,7 @@ GSLIC::GSLIC(gSLICr::objects::settings settings):
     this->height = settings.img_size.y;
 }
 
+/// Generate superpixels for the frame (BGR format)
 ISuperpixel* GSLIC::Compute(cv::InputArray _frame) {
     cv::Mat frame = _frame.getMat();
     CV_Assert(frame.cols == (int)width && frame.rows == (int)height);
