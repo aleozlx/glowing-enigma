@@ -21,6 +21,7 @@ find_package(CUDA 10)
 # More Packages
 find_package(Boost)
 find_package(Spfreq2)
+find_package(LibPQXX)
 
 # Feature definitions
 add_definitions("-DVER_OPENCV=${OpenCV_VERSION}")
@@ -130,6 +131,11 @@ if(TENSORFLOW_FOUND)
     target_include_directories(superpixel_process PUBLIC ${TensorFlow_INCLUDE_DIR})
     target_link_libraries(superpixel_process -Wl,--allow-multiple-definition -Wl,--whole-archive ${TensorFlow_C_LIBRARY} -Wl,--no-whole-archive)
     target_link_libraries(superpixel_process -Wl,--allow-multiple-definition -Wl,--whole-archive ${TensorFlow_LIBRARY} -Wl,--no-whole-archive)
+endif()
+if(LIBPQXX_FOUND)
+    target_include_directories(superpixel_process PUBLIC ${LIBPQXX_INCLUDE_DIR})
+    # target_link_directories(superpixel_process PUBLIC ${LIBPQXX_LIBRARY_DIRS})
+    target_link_libraries(superpixel_process pqxx)
 endif()
 target_link_libraries(superpixel_process
     opencv_core

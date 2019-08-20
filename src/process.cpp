@@ -3,6 +3,7 @@
 #include <iterator>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
+#include <pqxx/pqxx>
 #include "argparse.hpp"
 #include "superpixel.hpp"
 #include "dcnn.hpp"
@@ -127,9 +128,10 @@ int main(int argc, char* argv[]) {
     dcnn.NewSession();
     ISuperpixel *superpixel = _superpixel.Compute(frame);
     unsigned int nsp = superpixel->GetNumSuperpixels();
+    pqxx::connection conn;
     for(int s = 0; s<nsp; ++s) {
         std::cout<<"s = "<<s<<std::endl;
-        
+
     }
     return 0;
 }
