@@ -80,35 +80,6 @@ struct Chipping {
     }
 };
 
-// create table superpixel_inference (
-//     id SERIAL PRIMARY KEY,
-//     ------------------
-//     -- Superpixel Generation
-//     ------------------
-//     frame_id INT REFERENCES frame(id) NOT NULL,
-//     size_class INT NOT NULL,
-
-//     ------------------
-//     -- Moments
-//     ------------------
-//     area FLOAT,
-//     centroid_abs_x INT,
-//     centroid_abs_y INT,
-
-//     ------------------
-//     -- DCNN Feature
-//     ------------------
-//     dcnn_name VARCHAR[16],
-//     dcnn_feature FLOAT[],
-
-//     ------------------
-//     -- Training Data
-//     ------------------
-//     class_label INT, -- the label of the smallest bounding box containing the centroid
-//     class_label_multiplicity INT -- the number of bounding boxes that the centroid hits
-// );
-
-
 int main(int argc, char* argv[]) {
     std::string dataset = "/tank/datasets/research/xView";
     std::string fname = "/tank/datasets/research/xView/train_images/1036.tif";
@@ -136,8 +107,15 @@ int main(int argc, char* argv[]) {
         pqxx::connection conn("dbname=xview user=postgres");
         fs::path pthFname(fname);
         conn.prepare("sql_find_frame_id", "select id from frame where image = $1");
+        conn.prepare("sql_match_bbox", // (image, cx, cy)
+"select image, class_label.label_name, bbox.xview_bounds_imcoords \
+from frame join bbox on frame.id = bbox.frame_id join class_label on bbox.xview_type_id = class_label.id \
+where frame.image = $1 \
+    and bbox.xview_bounds_imcoords[1] < $2 and bbox.xview_bounds_imcoords[2] < $3 and bbox.xview_bounds_imcoords[3] > $2 and bbox.xview_bounds_imcoords[4] > $3 \
+order by (bbox.xview_bounds_imcoords[3]-bbox.xview_bounds_imcoords[1])*(bbox.xview_bounds_imcoords[4]-bbox.xview_bounds_imcoords[2]);");
         pqxx::work cur(conn);
-        pqxx::result r = cur.prepared("sql_find_frame_id")(fs::path(fname).lexically_relative(dataset).string()).exec();
+        std::string image = fs::path(fname).lexically_relative(dataset).string();
+        pqxx::result r = cur.prepared("sql_find_frame_id")(image).exec();
         cur.commit();
         if(r.size() == 0)
             return 1;
@@ -148,24 +126,61 @@ int main(int argc, char* argv[]) {
         cv::Moments superpixel_moments;
         superpixel->GetLabels(superpixel_labels);
         for(int s = 0; s<nsp; ++s) {
-            std::cout<<"frame_id = "<<frame_id<<"  s = "<<s<<std::endl;
+            // create table superpixel_inference (
+            //     id SERIAL PRIMARY KEY,
+            //     ------------------
+            //     -- Superpixel Generation
+            //     ------------------
+            //     frame_id INT REFERENCES frame(id) NOT NULL,
+            //     size_class INT NOT NULL,
+
+            //     ------------------
+            //     -- Moments
+            //     ------------------
+            //     area FLOAT,
+            //     centroid_abs_x INT,
+            //     centroid_abs_y INT,
+
+            //     ------------------
+            //     -- DCNN Feature
+            //     ------------------
+            //     dcnn_name VARCHAR[16],
+            //     dcnn_feature FLOAT[],
+
+            //     ------------------
+            //     -- Training Data
+            //     ------------------
+            //     class_label INT, -- the label of the smallest bounding box containing the centroid
+            //     class_label_multiplicity INT -- the number of bounding boxes that the centroid hits
+            // );
+
             superpixel_selected = superpixel_labels == s;
             cv::findContours(superpixel_selected, superpixel_sel_contour, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
 
             superpixel_moments = cv::moments(superpixel_sel_contour[0], true);
-            // spatial moments
-            //   m00, m10, m01, m20, m11, m02, m30, m21, m12, m03;
-            // central moments
-            //   mu20, mu11, mu02, mu30, mu21, mu12, mu03;
-            // central normalized moments
-            //   nu20, nu11, nu02, nu30, nu21, nu12, nu03;
             #define v0 superpixel_moments.m00
             #define v1 superpixel_moments.mu02
             #define v2 superpixel_moments.mu20
             #define v3 superpixel_moments.mu11
-            std::cout<<"  Area = "<<v0<<std::endl;
-            // ImGui::Text("Area: %.1f", v0);
-            // ImGui::Text("Centroid: (%4.1f,%4.1f)", superpixel_moments.m10/v0, superpixel_moments.m01/v0);
+            if (v0 > 0) {
+                std::cout<<"<frame_id = "<<frame_id<<", s = "<<s<<">"<<std::endl;
+                std::cout<<"  Area = "<<v0<<std::endl;
+                float cxf32 = superpixel_moments.m10/v0, cyf32 = superpixel_moments.m01/v0;
+                std::cout<<"  Centroid = "<<cxf32<<","<<cyf32<<std::endl;
+                pqxx::work cur(conn);
+                r = cur.prepared("sql_match_bbox")(image)((int)cxf32)((int)cyf32).exec();
+                cur.commit();
+                int class_label_multiplicity = r.size();
+                std::cout<<"  Objects = "<<class_label_multiplicity<<std::endl;
+                if(r.size() > 0) {
+                    std::cout<<"    ";
+                    for(auto row: r) {
+                        std::cout<<row["label_name"]<<". ";
+                    }
+                    std::cout<<std::endl;
+                }
+            }
+            
         }
     }
     catch (const std::exception &e) {
