@@ -1,12 +1,15 @@
 #include <string>
 #include <iostream>
 #include <iterator>
+#include <filesystem>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 #include <pqxx/pqxx>
 #include "argparse.hpp"
 #include "superpixel.hpp"
 #include "dcnn.hpp"
+
+namespace fs = std::filesystem;
 
 void init() {
     // run as: [program name] "0 -c" abc -a 1 -sdfl --flag -v 1 2.7 3 4 9 8.12 87
@@ -107,6 +110,7 @@ struct Chipping {
 
 
 int main(int argc, char* argv[]) {
+    std::string dataset = "/tank/datasets/research/xView";
     std::string fname = "/tank/datasets/research/xView/train_images/1036.tif";
     cv::Mat frame_raw = cv::imread(fname, cv::IMREAD_COLOR);
     cv::Size real_size = frame_raw.size();
@@ -128,10 +132,44 @@ int main(int argc, char* argv[]) {
     dcnn.NewSession();
     ISuperpixel *superpixel = _superpixel.Compute(frame);
     unsigned int nsp = superpixel->GetNumSuperpixels();
-    pqxx::connection conn;
-    for(int s = 0; s<nsp; ++s) {
-        std::cout<<"s = "<<s<<std::endl;
+    try{
+        pqxx::connection conn("dbname=xview user=postgres");
+        fs::path pthFname(fname);
+        conn.prepare("sql_find_frame_id", "select id from frame where image = $1");
+        pqxx::work cur(conn);
+        pqxx::result r = cur.prepared("sql_find_frame_id")(fs::path(fname).lexically_relative(dataset).string()).exec();
+        cur.commit();
+        if(r.size() == 0)
+            return 1;
+        int frame_id = r[0][0].as<int>();
 
+        cv::Mat superpixel_labels, superpixel_selected;
+        std::vector<std::vector<cv::Point>> superpixel_sel_contour;
+        cv::Moments superpixel_moments;
+        superpixel->GetLabels(superpixel_labels);
+        for(int s = 0; s<nsp; ++s) {
+            std::cout<<"frame_id = "<<frame_id<<"  s = "<<s<<std::endl;
+            superpixel_selected = superpixel_labels == s;
+            cv::findContours(superpixel_selected, superpixel_sel_contour, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
+
+            superpixel_moments = cv::moments(superpixel_sel_contour[0], true);
+            // spatial moments
+            //   m00, m10, m01, m20, m11, m02, m30, m21, m12, m03;
+            // central moments
+            //   mu20, mu11, mu02, mu30, mu21, mu12, mu03;
+            // central normalized moments
+            //   nu20, nu11, nu02, nu30, nu21, nu12, nu03;
+            #define v0 superpixel_moments.m00
+            #define v1 superpixel_moments.mu02
+            #define v2 superpixel_moments.mu20
+            #define v3 superpixel_moments.mu11
+            std::cout<<"  Area = "<<v0<<std::endl;
+            // ImGui::Text("Area: %.1f", v0);
+            // ImGui::Text("Centroid: (%4.1f,%4.1f)", superpixel_moments.m10/v0, superpixel_moments.m01/v0);
+        }
+    }
+    catch (const std::exception &e) {
+        std::cerr<<e.what()<<std::endl;
     }
     return 0;
 }

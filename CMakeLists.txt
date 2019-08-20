@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.3)
 project(glowing-enigma)
+set(CMAKE_CXX_STANDARD 17)
 set(OpenGL_GL_PREFERENCE GLVND)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/modules)
 
