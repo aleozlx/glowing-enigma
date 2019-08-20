@@ -129,6 +129,7 @@ int main(int argc, char* argv[]) {
     unsigned int nsp = superpixel->GetNumSuperpixels();
     for(int s = 0; s<nsp; ++s) {
         std::cout<<"s = "<<s<<std::endl;
+        
     }
     return 0;
 }
