@@ -61,9 +61,7 @@ int main(int argc, char* argv[]) {
     cv::Mat frame_raw = cv::imread(fname, cv::IMREAD_COLOR);
     cv::Size real_size = frame_raw.size();
     const int width = 256, height = 256, size_class = 32;
-    Chipping chips(real_size, cv::Size(width, height));
-    cv::Rect roi = chips.GetROI(1);
-    cv::Mat frame = frame_raw(roi);
+    Chipping chips(real_size, cv::Size(width, height), 0.5);
     GSLIC _superpixel({
         .img_size = { width, height },
         .no_segs = 64,
@@ -77,8 +75,7 @@ int main(int argc, char* argv[]) {
     VGG16SP dcnn;
     dcnn.Summary();
     dcnn.NewSession();
-    ISuperpixel *superpixel = _superpixel.Compute(frame);
-    unsigned int nsp = superpixel->GetNumSuperpixels();
+
     try{
         pqxx::connection conn("dbname=xview user=postgres");
         fs::path pthFname(fname);
@@ -97,66 +94,73 @@ order by (bbox.xview_bounds_imcoords[3]-bbox.xview_bounds_imcoords[1])*(bbox.xvi
             return 1;
         int frame_id = r[0][0].as<int>();
 
-        cv::Mat superpixel_labels, superpixel_selected;
+        cv::Mat frame, superpixel_labels, superpixel_selected;
+        cv::Rect roi;
         std::vector<std::vector<cv::Point>> superpixel_sel_contour;
         cv::Moments superpixel_moments;
-        superpixel->GetLabels(superpixel_labels);
-        for(int s = 0; s<nsp; ++s) {
-            // create table superpixel_inference (
-            //     id SERIAL PRIMARY KEY,
-            //     ------------------
-            //     -- Superpixel Generation
-            //     ------------------
-            //     frame_id INT REFERENCES frame(id) NOT NULL,
-            //     size_class INT NOT NULL,
+        for(int chip_id = 0; chip_id<chips.nchip; ++chip_id) {
+            roi = chips.GetROI(chip_id);
+            frame = frame_raw(roi);
+            ISuperpixel *superpixel = _superpixel.Compute(frame);
+            unsigned int nsp = superpixel->GetNumSuperpixels();
+            superpixel->GetLabels(superpixel_labels);
+            for(int s = 0; s<nsp; ++s) {
+                // create table superpixel_inference (
+                //     id SERIAL PRIMARY KEY,
+                //     ------------------
+                //     -- Superpixel Generation
+                //     ------------------
+                //     frame_id INT REFERENCES frame(id) NOT NULL,
+                //     size_class INT NOT NULL,
 
-            //     ------------------
-            //     -- Moments
-            //     ------------------
-            //     area FLOAT,
-            //     centroid_abs_x INT,
-            //     centroid_abs_y INT,
+                //     ------------------
+                //     -- Moments
+                //     ------------------
+                //     area FLOAT,
+                //     centroid_abs_x INT,
+                //     centroid_abs_y INT,
 
-            //     ------------------
-            //     -- DCNN Feature
-            //     ------------------
-            //     dcnn_name VARCHAR[16],
-            //     dcnn_feature FLOAT[],
+                //     ------------------
+                //     -- DCNN Feature
+                //     ------------------
+                //     dcnn_name VARCHAR[16],
+                //     dcnn_feature FLOAT[],
 
-            //     ------------------
-            //     -- Training Data
-            //     ------------------
-            //     class_label INT, -- the label of the smallest bounding box containing the centroid
-            //     class_label_multiplicity INT -- the number of bounding boxes that the centroid hits
-            // );
+                //     ------------------
+                //     -- Training Data
+                //     ------------------
+                //     class_label INT, -- the label of the smallest bounding box containing the centroid
+                //     class_label_multiplicity INT -- the number of bounding boxes that the centroid hits
+                // );
 
-            superpixel_selected = superpixel_labels == s;
-            cv::findContours(superpixel_selected, superpixel_sel_contour, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
+                superpixel_selected = superpixel_labels == s;
+                cv::findContours(superpixel_selected, superpixel_sel_contour, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
 
-            superpixel_moments = cv::moments(superpixel_sel_contour[0], true);
-            #define v0 superpixel_moments.m00
-            #define v1 superpixel_moments.mu02
-            #define v2 superpixel_moments.mu20
-            #define v3 superpixel_moments.mu11
-            if (v0 > 0) {
-                std::cout<<"<frame_id = "<<frame_id<<", chip = "<<roi<<", s = "<<s<<">"<<std::endl;
-                std::cout<<"  Area = "<<v0<<std::endl;
-                float cxf32 = superpixel_moments.m10/v0+roi.x, cyf32 = superpixel_moments.m01/v0+roi.y;
-                std::cout<<"  Centroid = "<<cxf32<<","<<cyf32<<std::endl;
-                pqxx::work cur(conn);
-                r = cur.prepared("sql_match_bbox")(image)((int)cxf32)((int)cyf32).exec();
-                cur.commit();
-                int class_label_multiplicity = r.size();
-                std::cout<<"  Objects = "<<class_label_multiplicity<<std::endl;
-                if(r.size() > 0) {
-                    std::cout<<"    ";
-                    for(auto row: r) {
-                        std::cout<<row["label_name"]<<". ";
+                superpixel_moments = cv::moments(superpixel_sel_contour[0], true);
+                #define v0 superpixel_moments.m00
+                #define v1 superpixel_moments.mu02
+                #define v2 superpixel_moments.mu20
+                #define v3 superpixel_moments.mu11
+                if (v0 > 0) {
+                    float cxf32 = superpixel_moments.m10/v0+roi.x, cyf32 = superpixel_moments.m01/v0+roi.y;
+                    pqxx::work cur(conn);
+                    r = cur.prepared("sql_match_bbox")(image)((int)cxf32)((int)cyf32).exec();
+                    cur.commit();
+                    int class_label_multiplicity = r.size();
+                    if(r.size() > 0) {
+                        std::cout<<"<frame_id = "<<frame_id<<", chip = "<<roi<<", s = "<<s<<">"<<std::endl;
+                        std::cout<<"  Area = "<<v0<<std::endl;
+                        std::cout<<"  Centroid = "<<cxf32<<","<<cyf32<<std::endl;
+                        std::cout<<"  Objects = "<<class_label_multiplicity<<std::endl;
+                        std::cout<<"    ";
+                        for(auto row: r) {
+                            std::cout<<row["label_name"]<<". ";
+                        }
+                        std::cout<<std::endl;
                     }
-                    std::cout<<std::endl;
                 }
+                
             }
-            
         }
     }
     catch (const std::exception &e) {
