@@ -80,17 +80,17 @@ int main(int argc, char* argv[]) {
         pqxx::connection conn("dbname=xview user=postgres");
         fs::path pthFname(fname);
         conn.prepare("sql_find_frame_id", "select id from frame where image = $1");
-        conn.prepare("sql_match_bbox", // (image, cx, cy)
+//         conn.prepare("sql_match_bbox", // (image, cx, cy)
+// "select image, class_label.label_name, bbox.xview_bounds_imcoords \
+// from frame join bbox on frame.id = bbox.frame_id join class_label on bbox.xview_type_id = class_label.id \
+// where frame.image = $1 \
+//     and bbox.xview_bounds_imcoords[1] < $2 and bbox.xview_bounds_imcoords[2] < $3 and bbox.xview_bounds_imcoords[3] > $2 and bbox.xview_bounds_imcoords[4] > $3 \
+// order by (bbox.xview_bounds_imcoords[3]-bbox.xview_bounds_imcoords[1])*(bbox.xview_bounds_imcoords[4]-bbox.xview_bounds_imcoords[2]);");
+        conn.prepare("sql_match_bbox2", // (image, cx, cy)
 "select image, class_label.label_name, bbox.xview_bounds_imcoords \
 from frame join bbox on frame.id = bbox.frame_id join class_label on bbox.xview_type_id = class_label.id \
-where frame.image = $1 \
-    and bbox.xview_bounds_imcoords[1] < $2 and bbox.xview_bounds_imcoords[2] < $3 and bbox.xview_bounds_imcoords[3] > $2 and bbox.xview_bounds_imcoords[4] > $3 \
-order by (bbox.xview_bounds_imcoords[3]-bbox.xview_bounds_imcoords[1])*(bbox.xview_bounds_imcoords[4]-bbox.xview_bounds_imcoords[2]);");
-        conn.prepare("sql_match_bbox2", // (image, cx, cy)
-"select image, class_label.label_name, bbox2.xview_bounds_imcoords \
-from frame join bbox2 on frame.id = bbox2.frame_id join class_label on bbox2.xview_type_id = class_label.id \
-where frame.image = $1 and st_point($2, $3) && bbox2.xview_bounds_imcoords \
-order by st_area(bbox2.xview_bounds_imcoords);");
+where frame.image = $1 and st_point($2, $3) && bbox.xview_bounds_imcoords \
+order by st_area(bbox.xview_bounds_imcoords);");
         pqxx::work cur(conn);
         std::string image = fs::path(fname).lexically_relative(dataset).string();
         pqxx::result r = cur.prepared("sql_find_frame_id")(image).exec();
