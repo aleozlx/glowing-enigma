@@ -250,7 +250,7 @@ class SuperpixelAnalyzerWindow2: public IWindow {
         _superpixel = GSLIC({
             .img_size = { width, height },
             .no_segs = 64,
-            .spixel_size = superpixel_size,
+            .spixel_size = (int)superpixel_size,
             .no_iters = 5,
             .coh_weight = 0.6f,
             .do_enforce_connectivity = true,

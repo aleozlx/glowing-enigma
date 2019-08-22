@@ -98,6 +98,14 @@ order by (bbox.xview_bounds_imcoords[3]-bbox.xview_bounds_imcoords[1])*(bbox.xvi
         cv::Rect roi;
         std::vector<std::vector<cv::Point>> superpixel_sel_contour;
         cv::Moments superpixel_moments;
+        unsigned long ct_superpixel = 0;
+        for(int chip_id = 0; chip_id<chips.nchip; ++chip_id) {
+            roi = chips.GetROI(chip_id);
+            frame = frame_raw(roi);
+            ISuperpixel *superpixel = _superpixel.Compute(frame);
+            ct_superpixel += superpixel->GetNumSuperpixels();
+        }
+        std::cout<<"Estimated number of superpixels: "<<ct_superpixel<<std::endl;
         for(int chip_id = 0; chip_id<chips.nchip; ++chip_id) {
             roi = chips.GetROI(chip_id);
             frame = frame_raw(roi);
