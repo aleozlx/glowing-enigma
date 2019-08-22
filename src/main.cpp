@@ -214,31 +214,6 @@ SIZE gdiv(SIZE a, SIZE b) {
     return (a + b - 1) / b;
 }
 
-struct Chipping {
-    int width, height;
-    int chip_width, chip_height;
-    int nx, ny, nchip;
-
-    Chipping() { }
-
-    Chipping(cv::Size input_size, cv::Size chip_size) {
-        width = input_size.width;
-        height = input_size.height;
-        chip_width = chip_size.width;
-        chip_height = chip_size.height;
-        nx = width / chip_width;
-        ny = height / chip_height;
-        nchip = nx * ny;
-    }
-
-    cv::Rect GetROI(int chip_id) {
-        // TODO add optional overlap
-        int offset_x = chip_id % nx * chip_height;
-        int offset_y = chip_id / nx * chip_width;
-        return cv::Rect(offset_x, offset_y, chip_width, chip_height);
-    }
-};
-
 class SuperpixelAnalyzerWindow2: public IWindow {
     public:
     SuperpixelAnalyzerWindow2(int frame_width, int frame_height, std::string fname, float superpixel_size):

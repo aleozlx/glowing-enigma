@@ -160,11 +160,45 @@ int VGG16SP::GetNSP() const {
 
 void VGG16SP::GetFeature(int superpixel_id, float *output_array) const {
     // Make a copy to detach the lifetime of the output feature array from the tensor.
-    
+
     // std::cerr<<"tensor ptr "<<(const void*)outputs[0].flat<float>().data()<<" superpixel "<<superpixel_id<<std::endl;
     const float *input_array = outputs[0].flat<float>().data() + superpixel_id * GetFeatureDim();
     // std::cerr<<"memcpy "<<(const void*) input_array<<" >> "<<(void*)output_array<<std::endl;
     std::memcpy(output_array, input_array, GetFeatureDim() * sizeof(float));
 }
+
+
+/// Calculate maximum number of chips, with size `c`, that can be fit into length `L` with overlapping proportion `e`.
+/// The condition to satisfy is that the right side of the last chip still lies within the given length.
+/// c+(n-1)(1-e)c <= L  i.e.  n <= (L-c)/((1-e)c)+1
+int Chipping::NChip(int c, int L, float e) {
+    if (e == 0.0) return L/c;
+    else return (int)(((float)(L-c))/((1-e)*c)+1);
+}
+
+Chipping::Chipping(cv::Size input_size, cv::Size chip_size, float overlap) {
+    width = input_size.width;
+    height = input_size.height;
+    chip_width = chip_size.width;
+    chip_height = chip_size.height;
+    nx = NChip(chip_width, width, overlap);
+    ny = NChip(chip_height, height, overlap);
+    nchip = nx * ny;
+    if(overlap == 0.0) {
+        chip_stride_x = chip_width;
+        chip_stride_y = chip_height;
+    }
+    else {
+        chip_stride_x = (int)((1-overlap)*chip_width);
+        chip_stride_y = (int)((1-overlap)*chip_height);
+    }
+}
+
+cv::Rect Chipping::GetROI(int chip_id) {
+    int offset_x = chip_id % nx * chip_stride_x;
+    int offset_y = chip_id / nx * chip_stride_y;
+    return cv::Rect(offset_x, offset_y, chip_width, chip_height);
+}
+
 
 #endif

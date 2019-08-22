@@ -55,31 +55,6 @@ void init() {
     // std::cout << std::endl;
 }
 
-struct Chipping {
-    int width, height;
-    int chip_width, chip_height;
-    int nx, ny, nchip;
-
-    Chipping() { }
-
-    Chipping(cv::Size input_size, cv::Size chip_size) {
-        width = input_size.width;
-        height = input_size.height;
-        chip_width = chip_size.width;
-        chip_height = chip_size.height;
-        nx = width / chip_width;
-        ny = height / chip_height;
-        nchip = nx * ny;
-    }
-
-    cv::Rect GetROI(int chip_id) {
-        // TODO add optional overlap
-        int offset_x = chip_id % nx * chip_height;
-        int offset_y = chip_id / nx * chip_width;
-        return cv::Rect(offset_x, offset_y, chip_width, chip_height);
-    }
-};
-
 int main(int argc, char* argv[]) {
     std::string dataset = "/tank/datasets/research/xView";
     std::string fname = "/tank/datasets/research/xView/train_images/1036.tif";
@@ -87,7 +62,8 @@ int main(int argc, char* argv[]) {
     cv::Size real_size = frame_raw.size();
     const int width = 256, height = 256, size_class = 32;
     Chipping chips(real_size, cv::Size(width, height));
-    cv::Mat frame = frame_raw(chips.GetROI(0));
+    cv::Rect roi = chips.GetROI(1);
+    cv::Mat frame = frame_raw(roi);
     GSLIC _superpixel({
         .img_size = { width, height },
         .no_segs = 64,
@@ -163,9 +139,9 @@ order by (bbox.xview_bounds_imcoords[3]-bbox.xview_bounds_imcoords[1])*(bbox.xvi
             #define v2 superpixel_moments.mu20
             #define v3 superpixel_moments.mu11
             if (v0 > 0) {
-                std::cout<<"<frame_id = "<<frame_id<<", s = "<<s<<">"<<std::endl;
+                std::cout<<"<frame_id = "<<frame_id<<", chip = "<<roi<<", s = "<<s<<">"<<std::endl;
                 std::cout<<"  Area = "<<v0<<std::endl;
-                float cxf32 = superpixel_moments.m10/v0, cyf32 = superpixel_moments.m01/v0;
+                float cxf32 = superpixel_moments.m10/v0+roi.x, cyf32 = superpixel_moments.m01/v0+roi.y;
                 std::cout<<"  Centroid = "<<cxf32<<","<<cyf32<<std::endl;
                 pqxx::work cur(conn);
                 r = cur.prepared("sql_match_bbox")(image)((int)cxf32)((int)cyf32).exec();
