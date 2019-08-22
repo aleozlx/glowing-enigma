@@ -86,6 +86,11 @@ from frame join bbox on frame.id = bbox.frame_id join class_label on bbox.xview_
 where frame.image = $1 \
     and bbox.xview_bounds_imcoords[1] < $2 and bbox.xview_bounds_imcoords[2] < $3 and bbox.xview_bounds_imcoords[3] > $2 and bbox.xview_bounds_imcoords[4] > $3 \
 order by (bbox.xview_bounds_imcoords[3]-bbox.xview_bounds_imcoords[1])*(bbox.xview_bounds_imcoords[4]-bbox.xview_bounds_imcoords[2]);");
+        conn.prepare("sql_match_bbox2", // (image, cx, cy)
+"select image, class_label.label_name, bbox2.xview_bounds_imcoords \
+from frame join bbox2 on frame.id = bbox2.frame_id join class_label on bbox2.xview_type_id = class_label.id \
+where frame.image = $1 and st_point($2, $3) && bbox2.xview_bounds_imcoords \
+order by st_area(bbox2.xview_bounds_imcoords);");
         pqxx::work cur(conn);
         std::string image = fs::path(fname).lexically_relative(dataset).string();
         pqxx::result r = cur.prepared("sql_find_frame_id")(image).exec();
@@ -152,7 +157,7 @@ order by (bbox.xview_bounds_imcoords[3]-bbox.xview_bounds_imcoords[1])*(bbox.xvi
                 if (v0 > 0) {
                     float cxf32 = superpixel_moments.m10/v0+roi.x, cyf32 = superpixel_moments.m01/v0+roi.y;
                     pqxx::work cur(conn);
-                    r = cur.prepared("sql_match_bbox")(image)((int)cxf32)((int)cyf32).exec();
+                    r = cur.prepared("sql_match_bbox2")(image)((int)cxf32)((int)cyf32).exec();
                     cur.commit();
                     int class_label_multiplicity = r.size();
                     if(r.size() > 0) {
