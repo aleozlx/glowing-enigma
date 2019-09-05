@@ -43,6 +43,12 @@ size_t vec2str(size_t dim, F *vec, char *dst) {
     return dst-dst0;
 }
 
+/*
+CREATE TABLE test_stream (
+    name VARCHAR(16),
+    feature REAL[]
+);
+*/
 BOOST_AUTO_TEST_CASE(test_stream_to) {
     std::string name = "a";
     std::vector<std::vector<double>> features {
