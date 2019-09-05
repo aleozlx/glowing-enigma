@@ -6,9 +6,7 @@
 #include <boost/test/included/unit_test.hpp>
 #include <pqxx/pqxx>
 
-extern "C" {
-#include "fpconv.h"
-}
+#include "saver.hpp"
 
 std::string connection = "dbname=xview user=postgres";
 
@@ -24,23 +22,13 @@ BOOST_AUTO_TEST_CASE(test_pq_conn) {
     BOOST_TEST(status);
 }
 
-#define dtoa_(fp, dest) fpconv_dtoa(fp, dest)
-#define MAX_LEN_DTOA (24)
-#define MAX_DIM_FEATURE (4096)
-
-template<typename F>
-size_t vec2str(size_t dim, F *vec, char *dst) {
-    if(dim<=0) return 0;
-    char *dst0 = dst;
-    *dst++ = '{';
-    do {
-        dst += dtoa_(static_cast<double>(*vec), dst);
-        *dst++ = ',';
-        vec++;
-    } while(--dim);
-    *(dst-1) = '}';
-    *dst = '\0';
-    return dst-dst0;
+int test_stream_count(pqxx::connection &conn) {
+    int ret;
+    pqxx::work w_ct(conn);
+    pqxx::result r = w_ct.exec_prepared("sql_ct");
+    r.at(0).at(0).to(ret);
+    w_ct.commit();
+    return ret;
 }
 
 /*
@@ -61,13 +49,7 @@ BOOST_AUTO_TEST_CASE(test_stream_to) {
     try {
         pqxx::connection conn(connection);
         conn.prepare("sql_ct", "select count(*) from test_stream");
-        int ct0, ct1;
-        {
-            pqxx::work w_ct(conn);
-            pqxx::result r = w_ct.exec_prepared("sql_ct");
-            r.at(0).at(0).to(ct0);
-            w_ct.commit();
-        }
+        int ct0 = test_stream_count(conn), ct1;
         pqxx::work w_stream(conn);
         pqxx::stream_to s {
             w_stream, "test_stream",
@@ -76,19 +58,12 @@ BOOST_AUTO_TEST_CASE(test_stream_to) {
             }
         };
         for(auto const &feature: features) {
-            feature_buffer.resize(MAX_LEN_DTOA*MAX_DIM_FEATURE+20);
-            size_t len = vec2str(3, feature.data(), const_cast<char*>(feature_buffer.data()));
-            feature_buffer.resize(len);
+            saver::vec2str(feature, feature_buffer);
             s<<std::make_tuple(name, feature_buffer);
         }
         s.complete();
         w_stream.commit();
-        {
-            pqxx::work w_ct(conn);
-            pqxx::result r = w_ct.exec_prepared("sql_ct");
-            r.at(0).at(0).to(ct1);
-            w_ct.commit();
-        }
+        ct1 = test_stream_count(conn);
         BOOST_TEST(ct1-ct0 == features.size());
     }
     catch (const std::exception &e) {
