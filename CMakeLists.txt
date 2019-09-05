@@ -77,6 +77,11 @@ if(CUDA_FOUND)
     target_link_libraries(gSLICr ${CUDA_LIBRARY})
 endif()
 
+# fpconv Library
+set(fpconv_root ${CMAKE_CURRENT_SOURCE_DIR}/fpconv/src)
+add_library(fpconv STATIC ${fpconv_root}/fpconv.c)
+target_include_directories(fpconv PUBLIC $<BUILD_INTERFACE:${fpconv_root}>)
+
 # Global Config
 include_directories(SYSTEM "/usr/include/opencv4")
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -169,6 +174,19 @@ target_link_libraries(gslic_demo imgui ${SOIL_LIBRARY} ${GLFW_LIBRARIES} ${GLEW_
     opencv_videoio
     opencv_video
 )
+
+# Tests
+if(Boost_FOUND)
+    set(CMAKE_BUILD_TYPE Debug)
+    set(CMAKE_EXE_LINKER_FLAGS  "-D_GLIBCXX_USE_CXX11_ABI=${TensorFlow_ABI}" )
+    include_directories(SYSTEM "tests")
+
+    if(LIBPQXX_FOUND)
+        add_executable(test_pq "tests/test_pq.cpp")
+        target_include_directories(test_pq PUBLIC ${LIBPQXX_INCLUDE_DIR})
+        target_link_libraries(test_pq fpconv pqxx)
+    endif()
+endif()
 
 # set(targets imgui)
 # set(headers_to_install ${phdrs})
