@@ -58,7 +58,7 @@ BOOST_AUTO_TEST_CASE(test_stream_to) {
             }
         };
         for(auto const &feature: features) {
-            saver::vec2str(feature, feature_buffer);
+            spt::pgsaver::vec2str(feature, feature_buffer);
             s<<std::make_tuple(name, feature_buffer);
         }
         s.complete();

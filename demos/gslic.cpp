@@ -12,6 +12,8 @@
 #include "superpixel.hpp"
 #include "misc_ocv.hpp"
 
+using namespace spt;
+
 const unsigned int WIDTH = 432;
 const unsigned int HEIGHT = 240;
 

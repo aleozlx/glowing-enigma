@@ -61,8 +61,8 @@ int main(int argc, char* argv[]) {
     cv::Mat frame_raw = cv::imread(fname, cv::IMREAD_COLOR);
     cv::Size real_size = frame_raw.size();
     const int width = 256, height = 256, size_class = 32;
-    Chipping chips(real_size, cv::Size(width, height), 0.5);
-    GSLIC _superpixel({
+    spt::dnn::Chipping chips(real_size, cv::Size(width, height), 0.5);
+    spt::GSLIC _superpixel({
         .img_size = { width, height },
         .no_segs = 64,
         .spixel_size = size_class,
@@ -72,7 +72,7 @@ int main(int argc, char* argv[]) {
         .color_space = gSLICr::CIELAB,
         .seg_method = gSLICr::GIVEN_SIZE
     });
-    VGG16SP dcnn;
+    spt::dnn::VGG16SP dcnn;
     dcnn.Summary();
     dcnn.NewSession();
 
@@ -93,7 +93,7 @@ where frame.image = $1 and st_point($2, $3) && bbox.xview_bounds_imcoords \
 order by st_area(bbox.xview_bounds_imcoords);");
         pqxx::work cur(conn);
         std::string image = fs::path(fname).lexically_relative(dataset).string();
-        pqxx::result r = cur.prepared("sql_find_frame_id")(image).exec();
+        pqxx::result r = cur.exec_prepared("sql_find_frame_id", image);
         cur.commit();
         if(r.size() == 0)
             return 1;
@@ -107,14 +107,14 @@ order by st_area(bbox.xview_bounds_imcoords);");
         for(int chip_id = 0; chip_id<chips.nchip; ++chip_id) {
             roi = chips.GetROI(chip_id);
             frame = frame_raw(roi);
-            ISuperpixel *superpixel = _superpixel.Compute(frame);
+            spt::ISuperpixel *superpixel = _superpixel.Compute(frame);
             ct_superpixel += superpixel->GetNumSuperpixels();
         }
         std::cout<<"Estimated number of superpixels: "<<ct_superpixel<<std::endl;
         for(int chip_id = 0; chip_id<chips.nchip; ++chip_id) {
             roi = chips.GetROI(chip_id);
             frame = frame_raw(roi);
-            ISuperpixel *superpixel = _superpixel.Compute(frame);
+            spt::ISuperpixel *superpixel = _superpixel.Compute(frame);
             unsigned int nsp = superpixel->GetNumSuperpixels();
             superpixel->GetLabels(superpixel_labels);
             for(int s = 0; s<nsp; ++s) {
@@ -157,7 +157,7 @@ order by st_area(bbox.xview_bounds_imcoords);");
                 if (v0 > 0) {
                     float cxf32 = superpixel_moments.m10/v0+roi.x, cyf32 = superpixel_moments.m01/v0+roi.y;
                     pqxx::work cur(conn);
-                    r = cur.prepared("sql_match_bbox2")(image)((int)cxf32)((int)cyf32).exec();
+                    r = cur.exec_prepared("sql_match_bbox2", image, (int)cxf32, (int)cyf32);
                     cur.commit();
                     int class_label_multiplicity = r.size();
                     if(r.size() > 0) {

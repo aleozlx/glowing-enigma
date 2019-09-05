@@ -43,7 +43,7 @@ class SuperpixelAnalyzerWindow: public IWindow {
         imSuperpixels = TexImage(width, height, channels);
         imHistogram = TexImage(width - 20, height, channels);
         #ifdef HAS_LIBGSLIC
-        _superpixel = GSLIC({
+        _superpixel = spt::GSLIC({
             .img_size = { width, height },
             .no_segs = 64,
             .spixel_size = 32,
@@ -54,7 +54,7 @@ class SuperpixelAnalyzerWindow: public IWindow {
             .seg_method = gSLICr::GIVEN_SIZE // gSLICr::GIVEN_NUM
         });
         #else
-        _superpixel = OpenCVSLIC(32, 30.0f, 3, 10.0f);
+        _superpixel = spt::OpenCVSLIC(32, 30.0f, 3, 10.0f);
         #endif
         dcnn.Summary();
         dcnn.NewSession();
@@ -69,11 +69,7 @@ class SuperpixelAnalyzerWindow: public IWindow {
         cam.capture >> frame;
         cv::cvtColor(frame, frame_rgb, cv::COLOR_BGR2RGB);
         frame_dcnn = frame_rgb.clone();
-        #ifdef HAS_LIBGSLIC
-        ISuperpixel* superpixel = _superpixel.Compute(frame);
-        #else
-        ISuperpixel* superpixel = _superpixel.Compute(frame);
-        #endif
+        spt::ISuperpixel* superpixel = _superpixel.Compute(frame);
         superpixel->GetLabels(superpixel_labels);
         superpixel_id = superpixel_labels.at<unsigned int>(pointer_y, pointer_x);
         superpixel_selected = superpixel_labels == superpixel_id;
@@ -187,11 +183,11 @@ class SuperpixelAnalyzerWindow: public IWindow {
     TexImage imSuperpixels;
     TexImage imHistogram;
     #ifdef HAS_LIBGSLIC
-    GSLIC _superpixel;
+    spt::GSLIC _superpixel;
     #else
-    OpenCVSLIC _superpixel;
+    spt::OpenCVSLIC _superpixel;
     #endif
-    VGG16 dcnn;
+    spt::dnn::VGG16 dcnn;
 
     bool _is_shown = false;
     char _title[64];
@@ -232,7 +228,7 @@ class SuperpixelAnalyzerWindow2: public IWindow {
         frame_raw = cv::imread(fname, cv::IMREAD_COLOR);
         cv::Size real_size = frame_raw.size();
 
-        chips = Chipping(real_size, cv::Size(width, height));
+        chips = spt::dnn::Chipping(real_size, cv::Size(width, height));
         frame = frame_raw(chips.GetROI(0));
 
         // double fit_width = ((double)width) / real_size.width;
@@ -247,7 +243,7 @@ class SuperpixelAnalyzerWindow2: public IWindow {
         imSuperpixels = TexImage(width, height, channels);
         imHistogram = TexImage(width - 20, height, channels);
         #ifdef HAS_LIBGSLIC
-        _superpixel = GSLIC({
+        _superpixel = spt::GSLIC({
             .img_size = { width, height },
             .no_segs = 64,
             .spixel_size = (int)superpixel_size,
@@ -258,7 +254,7 @@ class SuperpixelAnalyzerWindow2: public IWindow {
             .seg_method = gSLICr::GIVEN_SIZE // gSLICr::GIVEN_NUM
         });
         #else
-        _superpixel = OpenCVSLIC(superpixel_size, 30.0f, 3, 10.0f);
+        _superpixel = spt::OpenCVSLIC(superpixel_size, 30.0f, 3, 10.0f);
         #endif
         
         dcnn.Summary();
@@ -398,12 +394,12 @@ class SuperpixelAnalyzerWindow2: public IWindow {
     TexImage imSuperpixels;
     TexImage imHistogram;
     #ifdef HAS_LIBGSLIC
-    GSLIC _superpixel;
+    spt::GSLIC _superpixel;
     #else
-    OpenCVSLIC _superpixel;
+    spt::OpenCVSLIC _superpixel;
     #endif
-    ISuperpixel* superpixel;
-    VGG16SP dcnn;
+    spt::ISuperpixel* superpixel;
+    spt::dnn::VGG16SP dcnn;
 
     bool _is_shown = false;
     char _title[64];
@@ -414,7 +410,7 @@ class SuperpixelAnalyzerWindow2: public IWindow {
     bool use_magnifier = false;
     bool normalize_component = true;
     int d_chip_id = 0;
-    Chipping chips;
+    spt::dnn::Chipping chips;
 
     cv::Mat frame_raw, frame, frame_rgb, frame_dcnn;
     cv::Mat superpixel_contour, superpixel_labels, superpixel_selected;
@@ -483,7 +479,7 @@ class DatasetWindow: public IStaticWindow {
         static int d_dataset = 0;
         if(ImGui::TreeNode("Dataset") && datasets.size()>0) {
             if (ImGui::BeginCombo("Source", datasets[d_dataset].c_str())) {
-                for (int i = 0; i<datasets.size(); ++i) {
+                for (size_t i = 0; i<datasets.size(); ++i) {
                     bool is_selected = i == d_dataset;
                     if (ImGui::Selectable(datasets[i].c_str(), is_selected))
                         d_dataset = i;

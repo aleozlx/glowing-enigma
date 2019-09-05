@@ -10,7 +10,7 @@ extern "C" {
 #define MAX_LEN_DTOA (24)
 #define RESERVE_VEC2STR(dim) ((MAX_LEN_DTOA+1)*(dim)+4) // (DTOA+SEP)*DIM+PADDING
 
-namespace saver {
+namespace spt::pgsaver {
     template<typename F>
     size_t vec2cstr(size_t dim, F *vec, char *dst) {
         if (dim <= 0) return 0;
@@ -30,7 +30,7 @@ namespace saver {
     void vec2str(V vec, std::string &dst) {
         size_t dim = vec.size();
         dst.resize(RESERVE_VEC2STR(dim));
-        size_t len = vec2cstr(dim, vec.data(), const_cast<char*>(dst.data()));
+        size_t len = vec2cstr(dim, vec.data(), const_cast<char *>(dst.data()));
         dst.resize(len);
     }
 }
