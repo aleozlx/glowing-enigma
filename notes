@@ -1,0 +1,135 @@
+create temporary table tmp_xview_feature_collection (feature_collection json);
+copy tmp_xview_feature_collection from '/tank/datasets/research/xView/xView_train.geojson';
+
+CREATE TABLE bbox (
+                      id SERIAL PRIMARY KEY,
+                      frame_id INT REFERENCES frame(id),
+                      xview_type_id INT,
+                      xview_cat_id VARCHAR(20),
+                      xview_bounds_imcoords geometry,
+                      xview_coordinates GEOMETRY
+);
+
+INSERT INTO bbox (frame_id, xview_type_id, xview_cat_id, xview_bounds_imcoords, xview_coordinates)
+SELECT
+    frame.id,
+    xview_type_id,
+    xview_cat_id,
+    xview_bounds_imcoords,
+    xview_coordinates
+FROM (
+         SELECT
+             ('train_images/' || xe.fname) AS fname,
+             xe.xview_type_id AS xview_type_id,
+             xe.xview_cat_id AS xview_cat_id,
+             st_makebox2d(st_point(xe.xvbox[1], xe.xvbox[2]), st_point(xe.xvbox[3], xe.xvbox[4]))::geometry AS xview_bounds_imcoords,
+             ST_GeomFromGeoJSON(xe.xview_coordinates) AS xview_coordinates
+         FROM (
+                  SELECT
+                              feat->'properties'->>'image_id' AS fname,
+                              (feat->'properties'->>'type_id')::int AS xview_type_id,
+                              feat->'properties'->>'cat_id' AS xview_cat_id,
+                              string_to_array(feat->'properties'->>'bounds_imcoords', ',')::FLOAT8[] AS xvbox,
+                              feat->>'geometry' AS xview_coordinates
+                  FROM (
+                           SELECT json_array_elements(feature_collection->'features') AS feat
+                           FROM tmp_xview_feature_collection
+                       ) AS json_xview_feature_collection
+              ) xe
+     ) xv
+         INNER JOIN frame ON xv.fname = frame.image;
+
+CREATE INDEX idx_bbox_test ON bbox USING gist (xview_bounds_imcoords);
+
+
+select xview_type_id, class_label.label_name, xview_bounds_imcoords::box2d from bbox join class_label on bbox2.xview_type_id = class_label.id where frame_id=849 and st_point(2450, 20) && xview_bounds_imcoords;
+
+
+
+
+
+delete from bbox;
+
+select * from bbox limit 5;
+
+select distinct on (frame_id) * from bbox;
+
+-- list all type_id's
+select distinct on (xview_type_id) * from bbox;
+
+select count(distinct xview_type_id) from bbox;
+
+select class_label.label_name, count(class_label.label_name) from bbox join class_label on bbox.xview_type_id = class_label.id group by class_label.label_name order by count(class_label.label_name);
+
+-- bounding boxes of one image chip
+select count(*) from frame join bbox on frame.id = bbox.frame_id where frame.image = 'train_images/1036.tif';
+
+select count(distinct bbox.xview_type_id) from frame join bbox on frame.id = bbox.frame_id where frame.image = 'train_images/1036.tif';
+
+select distinct on (bbox.xview_type_id) frame.id, image, class_label.label_name, bbox.xview_bounds_imcoords from frame join bbox on frame.id = bbox.frame_id join class_label on bbox.xview_type_id = class_label.id where frame.image = 'train_images/1036.tif';
+
+select image, class_label.label_name, bbox.xview_bounds_imcoords from frame join bbox on frame.id = bbox.frame_id join class_label on bbox.xview_type_id = class_label.id where frame.image = 'train_images/1036.tif';
+
+select class_label.label_name, count(class_label.label_name) from frame join bbox on frame.id = bbox.frame_id join class_label on bbox.xview_type_id = class_label.id where frame.image = 'train_images/1036.tif' group by label_name order by count(class_label.label_name);
+
+select image, class_label.label_name, bbox.xview_bounds_imcoords from frame join bbox on frame.id = bbox.frame_id join class_label on bbox.xview_type_id = class_label.id where frame.image = 'train_images/1036.tif' and class_label.label_name in ('Truck', 'Small Car') order by class_label.label_name;
+
+select image, class_label.label_name, bbox.xview_bounds_imcoords
+from frame join bbox on frame.id = bbox.frame_id join class_label on bbox.xview_type_id = class_label.id
+where frame.image = 'train_images/1036.tif' and class_label.label_name in ('Truck', 'Small Car')
+order by (bbox.xview_bounds_imcoords[3]-bbox.xview_bounds_imcoords[1])*(bbox.xview_bounds_imcoords[4]-bbox.xview_bounds_imcoords[2]);
+
+select image, class_label.label_name, bbox.xview_bounds_imcoords
+from frame join bbox on frame.id = bbox.frame_id join class_label on bbox.xview_type_id = class_label.id
+where frame.image = 'train_images/1036.tif'
+  and bbox.xview_bounds_imcoords[1] < 120 and bbox.xview_bounds_imcoords[2] < 1870 and bbox.xview_bounds_imcoords[3] > 120 and bbox.xview_bounds_imcoords[4] > 1870
+  and class_label.label_name in ('Truck', 'Small Car')
+order by (bbox.xview_bounds_imcoords[3]-bbox.xview_bounds_imcoords[1])*(bbox.xview_bounds_imcoords[4]-bbox.xview_bounds_imcoords[2]);
+
+drop table superpixel_inference;
+
+create table superpixel_inference (
+                                      id SERIAL PRIMARY KEY,
+    ------------------
+    -- Superpixel Generation
+    ------------------
+                                      frame_id INT REFERENCES frame(id) NOT NULL,
+                                      size_class INT NOT NULL,
+
+    ------------------
+    -- Moments
+    ------------------
+                                      area REAL,
+                                      centroid_abs_x INT,
+                                      centroid_abs_y INT,
+    -- cov_11 REAL,
+    -- cov_12 REAL,
+    -- cov_22 REAL,
+    -- eigenvector_1_x REAL,
+    -- eigenvector_1_y REAL,
+    -- eigenvector_2_x REAL,
+    -- eigenvector_2_y REAL,
+    -- eigenvalue_1 REAL,
+    -- eigenvalue_2 REAL,
+    -- eccentricity REAL,
+
+    ------------------
+    -- Polygon
+    ------------------
+    -- boundary GEOMETRY,
+    -- convexivity REAL,
+
+    ------------------
+    -- DCNN Feature
+    ------------------
+                                      dcnn_name VARCHAR(16),
+                                      dcnn_feature REAL[],
+
+    ------------------
+    -- Training Data
+    ------------------
+                                      class_label INT, -- the label of the smallest bounding box containing the centroid
+                                      class_label_multiplicity INT -- the number of bounding boxes that the centroid hits
+);
+
+CREATE INDEX idx_image ON frame (image);
