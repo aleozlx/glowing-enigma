@@ -8,6 +8,7 @@
 #include "argparse.hpp"
 #include "superpixel.hpp"
 #include "dcnn.hpp"
+#include "saver.hpp"
 
 namespace fs = std::filesystem;
 
@@ -89,14 +90,14 @@ int main(int argc, char* argv[]) {
         fs::path pthFname(fname);
         conn.prepare("sql_find_frame_id", "select id from frame where image = $1");
         conn.prepare("sql_match_bbox2", // (image, cx, cy)
-"select image, class_label.label_name, bbox.xview_bounds_imcoords \
+"select image, class_label.label_name, bbox.xview_type_id, bbox.xview_bounds_imcoords \
 from frame join bbox on frame.id = bbox.frame_id join class_label on bbox.xview_type_id = class_label.id \
 where frame.image = $1 and st_point($2, $3) && bbox.xview_bounds_imcoords \
 order by st_area(bbox.xview_bounds_imcoords);");
-        pqxx::work cur(conn);
+        pqxx::work w_frame(conn);
         std::string image = fs::path(fname).lexically_relative(dataset).string();
-        pqxx::result r = cur.exec_prepared("sql_find_frame_id", image);
-        cur.commit();
+        pqxx::result r = w_frame.exec_prepared("sql_find_frame_id", image);
+        w_frame.commit();
         if(r.size() == 0)
             return 1;
         int frame_id = r[0][0].as<int>();
@@ -107,6 +108,7 @@ order by st_area(bbox.xview_bounds_imcoords);");
         cv::Moments superpixel_moments;
         std::vector<float> superpixel_feature_buffer;
         superpixel_feature_buffer.resize(dcnn.GetFeatureDim());
+        std::string superpixel_feature_strbuffer;
 
         unsigned long ct_superpixel = 0;
         for(int chip_id = 0; chip_id<chips.nchip; ++chip_id) {
@@ -116,6 +118,25 @@ order by st_area(bbox.xview_bounds_imcoords);");
             ct_superpixel += superpixel->GetNumSuperpixels();
         }
         std::cout<<"Estimated number of superpixels: "<<ct_superpixel<<std::endl;
+
+        pqxx::connection conn2("dbname=xview user=postgres");
+        pqxx::work w_spstream(conn2);
+        pqxx::stream_to sps {
+            w_spstream, "superpixel_inference",
+            std::vector<std::string> {
+                "frame_id",
+                "size_class",
+                "area",
+                "centroid_abs_x",
+                "centroid_abs_y",
+                "dcnn_name",
+                "dcnn_feature",
+                "class_label",
+                "class_label_multiplicity"
+            }
+        };
+        std::string dcnn_name = "VGG16SP_test";
+        int rows_inserted = 0;
         for(int chip_id = 0; chip_id<chips.nchip; ++chip_id) {
             roi = chips.GetROI(chip_id);
 
@@ -128,34 +149,6 @@ order by st_area(bbox.xview_bounds_imcoords);");
 
             dcnn.Compute(frame_dcnn, superpixel_labels);
             for(int s = 0; s<nsp; ++s) {
-                // create table superpixel_inference (
-                //     id SERIAL PRIMARY KEY,
-                //     ------------------
-                //     -- Superpixel Generation
-                //     ------------------
-                //     frame_id INT REFERENCES frame(id) NOT NULL,
-                //     size_class INT NOT NULL,
-
-                //     ------------------
-                //     -- Moments
-                //     ------------------
-                //     area FLOAT,
-                //     centroid_abs_x INT,
-                //     centroid_abs_y INT,
-
-                //     ------------------
-                //     -- DCNN Feature
-                //     ------------------
-                //     dcnn_name VARCHAR(16),
-                //     dcnn_feature FLOAT[],
-
-                //     ------------------
-                //     -- Training Data
-                //     ------------------
-                //     class_label INT, -- the label of the smallest bounding box containing the centroid
-                //     class_label_multiplicity INT -- the number of bounding boxes that the centroid hits
-                // );
-
                 superpixel_selected = superpixel_labels == s;
                 cv::findContours(superpixel_selected, superpixel_sel_contour, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
 
@@ -167,25 +160,36 @@ order by st_area(bbox.xview_bounds_imcoords);");
                 if (v0 > 0) {
                     dcnn.GetFeature(s, superpixel_feature_buffer.data());
                     float cxf32 = superpixel_moments.m10/v0+roi.x, cyf32 = superpixel_moments.m01/v0+roi.y;
-                    pqxx::work cur(conn);
-                    r = cur.exec_prepared("sql_match_bbox2", image, (int)cxf32, (int)cyf32);
-                    cur.commit();
+                    pqxx::work w_bbox(conn);
+                    r = w_bbox.exec_prepared("sql_match_bbox2", image, (int)cxf32, (int)cyf32);
+                    w_bbox.commit();
                     int class_label_multiplicity = r.size();
                     if(r.size() > 0) {
-                        std::cout<<"<frame_id = "<<frame_id<<", chip = "<<roi<<", s = "<<s<<">"<<std::endl;
-                        std::cout<<"  Area = "<<v0<<std::endl;
-                        std::cout<<"  Centroid = "<<cxf32<<","<<cyf32<<std::endl;
-                        std::cout<<"  Objects = "<<class_label_multiplicity<<std::endl;
-                        std::cout<<"    ";
-                        for(auto row: r) {
-                            std::cout<<row["label_name"]<<". ";
-                        }
-                        std::cout<<std::endl;
+                        spt::pgsaver::vec2str(superpixel_feature_buffer, superpixel_feature_strbuffer);
+
+                        sps<<std::make_tuple(
+                                frame_id, size_class,
+                                v0, (int)cxf32, (int)cyf32,
+                                dcnn_name, superpixel_feature_strbuffer,
+                                r[0]["xview_type_id"].as<int>(), class_label_multiplicity);
+                        ++rows_inserted;
+//                        std::cout<<"<frame_id = "<<frame_id<<", chip = "<<roi<<", s = "<<s<<">"<<std::endl;
+//                        std::cout<<"  Area = "<<v0<<std::endl;
+//                        std::cout<<"  Centroid = "<<cxf32<<","<<cyf32<<std::endl;
+//                        std::cout<<"  Objects = "<<class_label_multiplicity<<std::endl;
+//                        std::cout<<"    ";
+//                        for(auto row: r) {
+//                            std::cout<<row["label_name"]<<". ";
+//                        }
+//                        std::cout<<std::endl;
                     }
                 }
                 
             }
         }
+        sps.complete();
+        w_spstream.commit();
+        std::cerr<<"Done. +"<<rows_inserted<<" rows"<<std::endl;
     }
     catch (const std::exception &e) {
         std::cerr<<e.what()<<std::endl;
