@@ -143,7 +143,7 @@ if(LIBPQXX_FOUND)
     # target_link_directories(superpixel_process PUBLIC ${LIBPQXX_LIBRARY_DIRS})
     target_link_libraries(superpixel_process pqxx)
 endif()
-target_link_libraries(superpixel_process
+target_link_libraries(superpixel_process ${SPFREQ2_LIBRARIES}
     opencv_core
     opencv_dnn
     opencv_imgproc

@@ -61,7 +61,18 @@ int main(int argc, char* argv[]) {
     cv::Mat frame_raw = cv::imread(fname, cv::IMREAD_COLOR);
     cv::Size real_size = frame_raw.size();
     const int width = 256, height = 256, size_class = 32;
-    spt::dnn::Chipping chips(real_size, cv::Size(width, height), 0.5);
+    spt::dnn::Chipping chips(real_size, cv::Size(width, height), 0.5); // TODO overlap as argument
+
+    spt::dnn::VGG16SP dcnn;
+    dcnn.Summary();
+    if(dcnn.NewSession()) {
+        std::cerr<<"Successfully initialized a new TensorFlow session."<<std::endl;
+    }
+    else {
+        std::cerr<<"Failed to initialized a new TensorFlow session."<<std::endl;
+    }
+    dcnn.SetInputResolution(256, 256);
+
     spt::GSLIC _superpixel({
         .img_size = { width, height },
         .no_segs = 64,
@@ -72,20 +83,11 @@ int main(int argc, char* argv[]) {
         .color_space = gSLICr::CIELAB,
         .seg_method = gSLICr::GIVEN_SIZE
     });
-    spt::dnn::VGG16SP dcnn;
-    dcnn.Summary();
-    dcnn.NewSession();
 
     try{
         pqxx::connection conn("dbname=xview user=postgres");
         fs::path pthFname(fname);
         conn.prepare("sql_find_frame_id", "select id from frame where image = $1");
-//         conn.prepare("sql_match_bbox", // (image, cx, cy)
-// "select image, class_label.label_name, bbox.xview_bounds_imcoords \
-// from frame join bbox on frame.id = bbox.frame_id join class_label on bbox.xview_type_id = class_label.id \
-// where frame.image = $1 \
-//     and bbox.xview_bounds_imcoords[1] < $2 and bbox.xview_bounds_imcoords[2] < $3 and bbox.xview_bounds_imcoords[3] > $2 and bbox.xview_bounds_imcoords[4] > $3 \
-// order by (bbox.xview_bounds_imcoords[3]-bbox.xview_bounds_imcoords[1])*(bbox.xview_bounds_imcoords[4]-bbox.xview_bounds_imcoords[2]);");
         conn.prepare("sql_match_bbox2", // (image, cx, cy)
 "select image, class_label.label_name, bbox.xview_bounds_imcoords \
 from frame join bbox on frame.id = bbox.frame_id join class_label on bbox.xview_type_id = class_label.id \
@@ -99,10 +101,13 @@ order by st_area(bbox.xview_bounds_imcoords);");
             return 1;
         int frame_id = r[0][0].as<int>();
 
-        cv::Mat frame, superpixel_labels, superpixel_selected;
+        cv::Mat frame, superpixel_labels, superpixel_selected, frame_dcnn;
         cv::Rect roi;
         std::vector<std::vector<cv::Point>> superpixel_sel_contour;
         cv::Moments superpixel_moments;
+        std::vector<float> superpixel_feature_buffer;
+        superpixel_feature_buffer.resize(dcnn.GetFeatureDim());
+
         unsigned long ct_superpixel = 0;
         for(int chip_id = 0; chip_id<chips.nchip; ++chip_id) {
             roi = chips.GetROI(chip_id);
@@ -113,10 +118,15 @@ order by st_area(bbox.xview_bounds_imcoords);");
         std::cout<<"Estimated number of superpixels: "<<ct_superpixel<<std::endl;
         for(int chip_id = 0; chip_id<chips.nchip; ++chip_id) {
             roi = chips.GetROI(chip_id);
+
             frame = frame_raw(roi);
+            cv::cvtColor(frame, frame_dcnn, cv::COLOR_BGR2RGB);
+
             spt::ISuperpixel *superpixel = _superpixel.Compute(frame);
             unsigned int nsp = superpixel->GetNumSuperpixels();
             superpixel->GetLabels(superpixel_labels);
+
+            dcnn.Compute(frame_dcnn, superpixel_labels);
             for(int s = 0; s<nsp; ++s) {
                 // create table superpixel_inference (
                 //     id SERIAL PRIMARY KEY,
@@ -136,7 +146,7 @@ order by st_area(bbox.xview_bounds_imcoords);");
                 //     ------------------
                 //     -- DCNN Feature
                 //     ------------------
-                //     dcnn_name VARCHAR[16],
+                //     dcnn_name VARCHAR(16),
                 //     dcnn_feature FLOAT[],
 
                 //     ------------------
@@ -155,6 +165,7 @@ order by st_area(bbox.xview_bounds_imcoords);");
                 #define v2 superpixel_moments.mu20
                 #define v3 superpixel_moments.mu11
                 if (v0 > 0) {
+                    dcnn.GetFeature(s, superpixel_feature_buffer.data());
                     float cxf32 = superpixel_moments.m10/v0+roi.x, cyf32 = superpixel_moments.m01/v0+roi.y;
                     pqxx::work cur(conn);
                     r = cur.exec_prepared("sql_match_bbox2", image, (int)cxf32, (int)cyf32);

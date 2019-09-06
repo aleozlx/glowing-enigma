@@ -53,9 +53,18 @@ namespace spt::dnn {
     bool TensorFlowInference::NewSession() {
         if (!_loaded) return false;
         tf::Status status = tf::NewSession(tf::SessionOptions(), &session);
-        if (!status.ok()) return false;
+        if (!status.ok()) { // TODO more consistent way of logging
+            std::cerr<<"tf::NewSession() error:"<<std::endl;
+            std::cerr<<status.ToString()<<std::endl;
+            return false;
+        }
         status = session->Create(graph);
-        return status.ok();
+        if (!status.ok()) {
+            std::cerr<<"tf::NewSession() error:"<<std::endl;
+            std::cerr<<status.ToString()<<std::endl;
+            return false;
+        }
+        return true;
     }
 
 
@@ -101,11 +110,10 @@ namespace spt::dnn {
 
     VGG16SP::VGG16SP() :
             TensorFlowInference(MODEL_WEIGHTS "vgg16sp.frozen.pb") {
-        // TODO fix this
-        SetInputResolution(256, 256);
     }
 
     void VGG16SP::SetInputResolution(unsigned int width, unsigned int height) {
+        std::cerr<<"SetInputResolution(): adding input tensors"<<std::endl;
         this->input_shape = tf::TensorShape({1, height, width, 3});
         this->input_tensor = tf::Tensor(tf::DT_UINT8, input_shape);
         this->superpixel_shape = tf::TensorShape({1, height, width});
@@ -132,11 +140,22 @@ namespace spt::dnn {
 
         // * DOUBLE CHECK: SIZE TYPE CONTINUITY
         CV_Assert(image.type() == CV_8UC3);
-        tf::StringPiece input_buffer = input_tensor.tensor_data();
-        std::memcpy(const_cast<char *>(input_buffer.data()), image.data, input_shape.num_elements() * sizeof(char));
+//        tf::StringPiece input_buffer = this->input_tensor.tensor_data();
+//        tf::StringPiece superpixel_buffer = this->superpixel_tensor.tensor_data();
+        auto input_buffer = this->input_tensor.tensor<tf::uint8, 4>();
+        auto superpixel_buffer = this->superpixel_tensor.tensor<tf::int32, 3>();
+        tf::uint8 *_input_buffer = input_buffer.data();
+        tf::int32 *_superpixel_buffer = superpixel_buffer.data();
+
+//        std::cout<<input_tensor.DeviceSafeDebugString()<<std::endl;
+//        std::cout<<"VGG16SP::Compute(): copy "<<input_shape.num_elements() * sizeof(char)<<" Bytes from "<< (void*)image.data <<" to "<< (void*)_input_buffer <<std::endl;
+//        std::cout<<superpixel_tensor.DeviceSafeDebugString()<<std::endl;
+//        std::cout<<"VGG16SP::Compute(): copy "<<superpixel_shape.num_elements() * sizeof(int)<<" Bytes from "<< (void*)_superpixels.data <<" to "<< (void*)_superpixel_buffer <<std::endl;
+//        std::cout<<"Tensor is initialized? "<<input_tensor.IsInitialized()<<std::endl;
+        std::memcpy(_input_buffer, image.data, input_shape.num_elements() * sizeof(char));
+
         CV_Assert(_superpixels.type() == CV_32SC1);
-        tf::StringPiece superpixel_buffer = superpixel_tensor.tensor_data();
-        std::memcpy(const_cast<char *>(superpixel_buffer.data()), _superpixels.data,
+        std::memcpy(_superpixel_buffer, _superpixels.data,
                     superpixel_shape.num_elements() * sizeof(int));
 
         tf::Status status = session->Run(inputs, {"Superpixels/MatMul:0"}, {}, &outputs);
@@ -144,9 +163,6 @@ namespace spt::dnn {
             std::cout << status.ToString() << "\n";
             return;
         }
-
-        // Output has shape [S, K]
-        // std::cout << outputs[0].DebugString() << "\n";
     }
 
     int VGG16SP::GetFeatureDim() const {

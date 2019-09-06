@@ -21,8 +21,8 @@ namespace spt::pgsaver {
             *dst++ = ',';
             vec++;
         } while (--dim);
-        *(dst - 1) = '}';
-        *dst = '\0';
+        dst[-1] = '}';
+        dst[0] = '\0';
         return dst - dst0;
     }
 
