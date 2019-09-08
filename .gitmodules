@@ -4,6 +4,3 @@
 [submodule "fpconv"]
 	path = fpconv
 	url = https://github.com/night-shift/fpconv.git
-[submodule "glowing-enigma-extras"]
-	path = extras
-	url = git@gitlab-p01.cgi.missouri.edu:ExternalUsers/AlexYang_Fun/glowing-enigma-extras.git
