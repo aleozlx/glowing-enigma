@@ -1,7 +1,5 @@
 build/
-cmake-build-debug/
-cmake-build-release/
-.vscode/
+target/
 
 # ImGui parameters
 *.ini
