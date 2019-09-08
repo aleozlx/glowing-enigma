@@ -6,13 +6,10 @@
 #include <opencv2/imgproc.hpp>
 #include <pqxx/pqxx>
 #include "argparse.hpp"
+#include "misc_os.hpp"
 #include "superpixel.hpp"
 #include "dcnn.hpp"
 #include "saver.hpp"
-
-extern "C" {
-#include <glob.h>
-}
 
 namespace fs = std::filesystem;
 
@@ -202,37 +199,11 @@ order by st_area(bbox.xview_bounds_imcoords);");
     }
 }
 
-class Glob {
-protected:
-    glob_t glob_result;
-    bool _error = false;
-public:
-    Glob(const char *pattern) {
-        std::memset(&glob_result, 0, sizeof(glob_result));
-        if(glob(pattern, GLOB_TILDE, NULL, &glob_result)!=0) {
-            std::cerr << "glob() error" << std::endl;
-            _error = true;
-        }
-    }
-
-    ~Glob() {
-        globfree(&glob_result);
-    }
-
-    size_t size() {
-        return _error ? 0 : glob_result.gl_pathc;
-    }
-
-    const char* operator[](int i) {
-        return glob_result.gl_pathv[i];
-    }
-};
-
 int main(int argc, char* argv[]) {
     std::string dataset = "/tank/datasets/research/xView";
 //    std::string fname = "/tank/datasets/research/xView/train_images/1036.tif";
 
-    Glob train_images("/tank/datasets/research/xView/train_images/3*.tif");
+    os_misc::Glob train_images("/tank/datasets/research/xView/train_images/3*.tif");
     for(size_t i = 0; i < train_images.size(); ++i) {
         std::string fname(train_images[i]);
         std::cout<<"Processing "<<fname<<std::endl;

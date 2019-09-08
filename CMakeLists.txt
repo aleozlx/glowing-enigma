@@ -128,7 +128,7 @@ add_executable(superpixel_process
     ${CMAKE_CURRENT_SOURCE_DIR}/src/superpixel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/dcnn.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/misc_ocv.cpp
-)
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/misc_os.cpp)
 if(CUDA_FOUND)
     target_compile_definitions(superpixel_process PUBLIC HAS_LIBGSLIC)
     target_link_libraries(superpixel_process gSLICr)
