@@ -5,6 +5,7 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 #include <pqxx/pqxx>
+#include <tensorflow/core/public/session.h>
 #include "argparse.hpp"
 #include "misc_os.hpp"
 #include "superpixel.hpp"
@@ -12,6 +13,7 @@
 #include "saver.hpp"
 
 namespace fs = std::filesystem;
+namespace tf = tensorflow;
 
 void init() {
     // run as: [program name] "0 -c" abc -a 1 -sdfl --flag -v 1 2.7 3 4 9 8.12 87
@@ -65,7 +67,9 @@ void process_tif(const std::string &dataset, const std::string &fname) {
 
     spt::dnn::VGG16SP dcnn;
 //    dcnn.Summary();
-    if(dcnn.NewSession()) {
+    tf::SessionOptions options;
+    options.config.mutable_gpu_options()->set_per_process_gpu_memory_fraction(0.45);
+    if(dcnn.NewSession(options)) {
         std::cerr<<"Successfully initialized a new TensorFlow session."<<std::endl;
     }
     else {
@@ -199,7 +203,7 @@ order by st_area(bbox.xview_bounds_imcoords);");
     }
 }
 
-const int NPROC = 4;
+const int NPROC = 1;
 
 int main(int argc, char* argv[]) {
     std::string dataset = "/tank/datasets/research/xView";
@@ -208,7 +212,7 @@ int main(int argc, char* argv[]) {
     os_misc::Glob train_images("/tank/datasets/research/xView/train_images/3*.tif");
     os_misc::ProcessPool pool(NPROC);
     {
-        os_misc::ScopedProcess p(pool.fork());
+        os_misc::ScopedProcess p(pool.fork(), NPROC);
         if (p.isChild()) {
             for(size_t i = p.tid; i < train_images.size(); i += NPROC) {
                 std::string fname(train_images[i]);
@@ -217,7 +221,6 @@ int main(int argc, char* argv[]) {
             }
         }
     }
-    std::cerr<<"master"<<std::endl;
 
     return 0;
 }

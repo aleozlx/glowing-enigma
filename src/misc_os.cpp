@@ -29,6 +29,8 @@ namespace os_misc {
     }
 
     int ProcessPool::fork() {
+        if (nproc<=1) // sequential execution
+            return 0;
         for (int i = 0; i < nproc; ++i) {
             pid_t child = ::fork();
             if (child < 0) {
@@ -41,12 +43,12 @@ namespace os_misc {
         return -1;
     }
 
-    ScopedProcess::ScopedProcess(int tid) : tid(tid) {
+    ScopedProcess::ScopedProcess(int tid, size_t nproc) : tid(tid), nproc(nproc) {
         this->pid = ::getpid();
     }
 
     ScopedProcess::~ScopedProcess() {
-        if (this->isChild()) // destroy the process itself
+        if (this->isChild() && nproc>1) // destroy the process itself
             ::_exit(0);
     }
 }

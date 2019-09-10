@@ -51,8 +51,12 @@ namespace spt::dnn {
     }
 
     bool TensorFlowInference::NewSession() {
+        return this->NewSession(tf::SessionOptions());
+    }
+
+    bool TensorFlowInference::NewSession(const tf::SessionOptions &config) {
         if (!_loaded) return false;
-        tf::Status status = tf::NewSession(tf::SessionOptions(), &session);
+        tf::Status status = tf::NewSession(config, &session);
         if (!status.ok()) { // TODO more consistent way of logging
             std::cerr<<"tf::NewSession() error:"<<std::endl;
             std::cerr<<status.ToString()<<std::endl;

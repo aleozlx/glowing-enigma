@@ -21,6 +21,7 @@ namespace spt::dnn {
         virtual ~TensorFlowInference();
 
         virtual bool NewSession();
+        virtual bool NewSession(const tensorflow::SessionOptions &config);
 
         virtual void Summary();
 

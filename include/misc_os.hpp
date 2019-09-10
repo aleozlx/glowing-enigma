@@ -37,6 +37,7 @@ namespace os_misc {
     };
 
     struct ScopedProcess {
+        size_t nproc;
         pid_t pid;
         int tid;
 
@@ -44,7 +45,7 @@ namespace os_misc {
             return tid >= 0;
         }
 
-        ScopedProcess(int tid);
+        ScopedProcess(int tid, size_t nproc);
 
         ~ScopedProcess();
     };
