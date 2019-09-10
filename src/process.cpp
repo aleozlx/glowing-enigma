@@ -170,11 +170,11 @@ order by st_area(bbox.xview_bounds_imcoords);");
                     if(r.size() > 0) {
                         spt::pgsaver::vec2str(superpixel_feature_buffer, superpixel_feature_strbuffer);
 
-                        sps<<std::make_tuple(
-                                frame_id, size_class,
-                                v0, (int)cxf32, (int)cyf32,
-                                dcnn_name, superpixel_feature_strbuffer,
-                                r[0]["xview_type_id"].as<int>(), class_label_multiplicity);
+//                        sps<<std::make_tuple(
+//                                frame_id, size_class,
+//                                v0, (int)cxf32, (int)cyf32,
+//                                dcnn_name, superpixel_feature_strbuffer,
+//                                r[0]["xview_type_id"].as<int>(), class_label_multiplicity);
                         ++rows_inserted;
 //                        std::cout<<"<frame_id = "<<frame_id<<", chip = "<<roi<<", s = "<<s<<">"<<std::endl;
 //                        std::cout<<"  Area = "<<v0<<std::endl;
@@ -199,16 +199,73 @@ order by st_area(bbox.xview_bounds_imcoords);");
     }
 }
 
+extern "C" {
+#include <unistd.h>
+#include <sys/wait.h>
+}
+
+namespace os_misc {
+    class ProcessPool {
+    protected:
+        size_t nproc;
+    public:
+        ProcessPool(size_t nproc) : nproc(nproc) {
+
+        }
+
+        int fork() {
+            for(int i=0; i<nproc; ++i) {
+                pid_t child = ::fork();
+                if (child < 0) {
+                    std::cerr<<"fork() error"<<std::endl;
+                    return -1;
+                }
+                else if (child == 0) return i;
+            }
+
+            while(waitpid(-1, nullptr, 0)>0);
+            return -1;
+        }
+    };
+
+    struct ScopedProcess {
+        pid_t pid;
+        int tid;
+
+        inline bool isChild() {
+            return tid >= 0;
+        }
+
+        ScopedProcess(int tid): tid(tid) {
+            this->pid = ::getpid();
+        }
+
+        ~ScopedProcess() {
+            if (this->isChild()) // destroy the process itself
+                ::_exit(0);
+        }
+    };
+}
+
+const int NPROC = 4;
+
 int main(int argc, char* argv[]) {
     std::string dataset = "/tank/datasets/research/xView";
 //    std::string fname = "/tank/datasets/research/xView/train_images/1036.tif";
 
     os_misc::Glob train_images("/tank/datasets/research/xView/train_images/3*.tif");
-    for(size_t i = 0; i < train_images.size(); ++i) {
-        std::string fname(train_images[i]);
-        std::cout<<"Processing "<<fname<<std::endl;
-        process_tif(dataset, fname);
+    os_misc::ProcessPool pool(NPROC);
+    {
+        os_misc::ScopedProcess p(pool.fork());
+        if (p.isChild()) {
+            for(size_t i = p.tid; i < train_images.size(); i += NPROC) {
+                std::string fname(train_images[i]);
+                std::cout<<"tid="<<p.tid<<" Processing "<<fname<<std::endl;
+                process_tif(dataset, fname);
+            }
+        }
     }
+    std::cerr<<"master"<<std::endl;
 
     return 0;
 }
