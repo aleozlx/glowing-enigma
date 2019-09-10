@@ -19,7 +19,35 @@ namespace os_misc {
 
         const char *operator[](int i);
     };
+}
 
+extern "C" {
+#include <unistd.h>
+#include <sys/wait.h>
+}
+
+namespace os_misc {
+    class ProcessPool {
+    protected:
+        size_t nproc;
+    public:
+        ProcessPool(size_t nproc);
+
+        int fork();
+    };
+
+    struct ScopedProcess {
+        pid_t pid;
+        int tid;
+
+        inline bool isChild() {
+            return tid >= 0;
+        }
+
+        ScopedProcess(int tid);
+
+        ~ScopedProcess();
+    };
 }
 
 #endif //GLOWING_ENIGMA_MISC_OS_HPP

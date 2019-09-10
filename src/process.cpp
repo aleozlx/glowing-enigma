@@ -199,54 +199,6 @@ order by st_area(bbox.xview_bounds_imcoords);");
     }
 }
 
-extern "C" {
-#include <unistd.h>
-#include <sys/wait.h>
-}
-
-namespace os_misc {
-    class ProcessPool {
-    protected:
-        size_t nproc;
-    public:
-        ProcessPool(size_t nproc) : nproc(nproc) {
-
-        }
-
-        int fork() {
-            for(int i=0; i<nproc; ++i) {
-                pid_t child = ::fork();
-                if (child < 0) {
-                    std::cerr<<"fork() error"<<std::endl;
-                    return -1;
-                }
-                else if (child == 0) return i;
-            }
-
-            while(waitpid(-1, nullptr, 0)>0);
-            return -1;
-        }
-    };
-
-    struct ScopedProcess {
-        pid_t pid;
-        int tid;
-
-        inline bool isChild() {
-            return tid >= 0;
-        }
-
-        ScopedProcess(int tid): tid(tid) {
-            this->pid = ::getpid();
-        }
-
-        ~ScopedProcess() {
-            if (this->isChild()) // destroy the process itself
-                ::_exit(0);
-        }
-    };
-}
-
 const int NPROC = 4;
 
 int main(int argc, char* argv[]) {

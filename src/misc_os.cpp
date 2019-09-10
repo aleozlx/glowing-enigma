@@ -23,4 +23,30 @@ namespace os_misc {
         return _error ? 0 : glob_result.gl_pathc;
     }
 
+
+    ProcessPool::ProcessPool(size_t nproc) : nproc(nproc) {
+
+    }
+
+    int ProcessPool::fork() {
+        for (int i = 0; i < nproc; ++i) {
+            pid_t child = ::fork();
+            if (child < 0) {
+//                    std::cerr<<"fork() error"<<std::endl;
+                return -2;
+            } else if (child == 0) return i;
+        }
+
+        while (waitpid(-1, nullptr, 0) > 0);
+        return -1;
+    }
+
+    ScopedProcess::ScopedProcess(int tid) : tid(tid) {
+        this->pid = ::getpid();
+    }
+
+    ScopedProcess::~ScopedProcess() {
+        if (this->isChild()) // destroy the process itself
+            ::_exit(0);
+    }
 }
