@@ -33,5 +33,12 @@ namespace spt::pgsaver {
         size_t len = vec2cstr(dim, vec.data(), const_cast<char *>(dst.data()));
         dst.resize(len);
     }
+
+    template<typename V>
+    void vec2str(V vec, size_t offset, size_t dim, std::string &dst) {
+        dst.resize(RESERVE_VEC2STR(dim));
+        size_t len = vec2cstr(dim, vec.data()+offset, const_cast<char *>(dst.data()));
+        dst.resize(len);
+    }
 }
 #endif

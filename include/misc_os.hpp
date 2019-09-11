@@ -37,9 +37,9 @@ namespace os_misc {
     };
 
     struct ScopedProcess {
+        int tid;
         size_t nproc;
         pid_t pid;
-        int tid;
 
         inline bool isChild() {
             return tid >= 0;

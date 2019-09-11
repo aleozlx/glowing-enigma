@@ -128,8 +128,8 @@ namespace spt::dnn {
         };
     }
 
-    void VGG16SP::Compute(cv::InputArray frame, cv::InputArray superpixels) {
-        if (!session) return;
+    IComputeFrameSuperpixel* VGG16SP::Compute(cv::InputArray frame, cv::InputArray superpixels) {
+        if (!session) return nullptr;
 
         cv::Mat image, _superpixels;
         // image.convertTo(image, CV_32FC3);
@@ -165,8 +165,9 @@ namespace spt::dnn {
         tf::Status status = session->Run(inputs, {"Superpixels/MatMul:0"}, {}, &outputs);
         if (!status.ok()) {
             std::cout << status.ToString() << "\n";
-            return;
+            return nullptr;
         }
+        return this;
     }
 
     int VGG16SP::GetFeatureDim() const {
@@ -184,6 +185,12 @@ namespace spt::dnn {
         const float *input_array = outputs[0].flat<float>().data() + superpixel_id * GetFeatureDim();
         // std::cerr<<"memcpy "<<(const void*) input_array<<" >> "<<(void*)output_array<<std::endl;
         std::memcpy(output_array, input_array, GetFeatureDim() * sizeof(float));
+    }
+
+    void VGG16SP::GetFeature(float *output_array) const {
+        // Make a copy to detach the lifetime of the output feature array from the tensor.
+        const float *input_array = outputs[0].flat<float>().data();
+        std::memcpy(output_array, input_array, GetFeatureDim() * GetNSP() * sizeof(float));
     }
 
 

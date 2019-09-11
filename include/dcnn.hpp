@@ -38,7 +38,11 @@ namespace spt::dnn {
 
     class IComputeFrameSuperpixel {
     public:
-        virtual void Compute(cv::InputArray frame, cv::InputArray superpixels) = 0;
+        virtual IComputeFrameSuperpixel* Compute(cv::InputArray frame, cv::InputArray superpixels) = 0;
+        virtual int GetFeatureDim() const = 0;
+        virtual int GetNSP() const = 0;
+        virtual void GetFeature(float *output_array) const = 0;
+        virtual void GetFeature(int superpixel_id, float *output_array) const = 0;
     };
 
     struct Chipping {
@@ -78,13 +82,15 @@ namespace spt::dnn {
 
         void SetInputResolution(unsigned int width, unsigned int height);
 
-        void Compute(cv::InputArray frame, cv::InputArray superpixels) override;
+        IComputeFrameSuperpixel* Compute(cv::InputArray frame, cv::InputArray superpixels) override;
 
-        int GetFeatureDim() const;
+        int GetFeatureDim() const override;
 
-        int GetNSP() const;
+        int GetNSP() const override;
 
-        void GetFeature(int superpixel_id, float *output_array) const;
+        void GetFeature(float *output_array) const override;
+
+        void GetFeature(int superpixel_id, float *output_array) const override;
 
     protected:
         tensorflow::TensorShape input_shape;

@@ -23,6 +23,7 @@ find_package(CUDA 10)
 find_package(Boost)
 find_package(Spfreq2)
 find_package(LibPQXX)
+find_package(OpenMP)
 
 # Feature definitions
 add_definitions("-DVER_OPENCV=${OpenCV_VERSION}")
@@ -142,6 +143,10 @@ if(LIBPQXX_FOUND)
     target_include_directories(superpixel_process PUBLIC ${LIBPQXX_INCLUDE_DIR})
     # target_link_directories(superpixel_process PUBLIC ${LIBPQXX_LIBRARY_DIRS})
     target_link_libraries(superpixel_process pqxx)
+endif()
+if(OPENMP_FOUND)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+    target_link_libraries(superpixel_process ${OpenMP_CXX_LIBRARIES})
 endif()
 target_link_libraries(superpixel_process ${SPFREQ2_LIBRARIES} fpconv
     opencv_core
