@@ -144,8 +144,6 @@ namespace spt::dnn {
 
         // * DOUBLE CHECK: SIZE TYPE CONTINUITY
         CV_Assert(image.type() == CV_8UC3);
-//        tf::StringPiece input_buffer = this->input_tensor.tensor_data();
-//        tf::StringPiece superpixel_buffer = this->superpixel_tensor.tensor_data();
         auto input_buffer = this->input_tensor.tensor<tf::uint8, 4>();
         auto superpixel_buffer = this->superpixel_tensor.tensor<tf::int32, 3>();
         tf::uint8 *_input_buffer = input_buffer.data();

@@ -58,6 +58,7 @@ class SuperpixelAnalyzerWindow: public IWindow {
         #endif
         dcnn.Summary();
         dcnn.NewSession();
+        dcnn.SetInputResolution(256, 256);
         
         this->_is_shown = true;
         return dynamic_cast<IWindow*>(this);
@@ -148,10 +149,10 @@ class SuperpixelAnalyzerWindow: public IWindow {
             //   mu20, mu11, mu02, mu30, mu21, mu12, mu03;
             // central normalized moments
             //   nu20, nu11, nu02, nu30, nu21, nu12, nu03;
-            #define v0 superpixel_moments.m00
-            #define v1 superpixel_moments.mu02
-            #define v2 superpixel_moments.mu20
-            #define v3 superpixel_moments.mu11
+            const double v0 = superpixel_moments.m00,
+                    v1 = superpixel_moments.mu02,
+                    v2 = superpixel_moments.mu20,
+                    v3 = superpixel_moments.mu11;
             ImGui::Text("Area: %.1f", v0);
             ImGui::Text("Centroid: (%4.1f,%4.1f)", superpixel_moments.m10/v0, superpixel_moments.m01/v0);
             ImGui::Text("Covariance: [%4.1f %4.1f; . %4.1f]", v2/v0, v3/v0, v1/v0);
@@ -259,7 +260,7 @@ class SuperpixelAnalyzerWindow2: public IWindow {
         
         dcnn.Summary();
         dcnn.NewSession();
-        
+        dcnn.SetInputResolution(256, 256);
         this->_is_shown = true;
         return dynamic_cast<IWindow*>(this);
     }
@@ -357,10 +358,10 @@ class SuperpixelAnalyzerWindow2: public IWindow {
             //   mu20, mu11, mu02, mu30, mu21, mu12, mu03;
             // central normalized moments
             //   nu20, nu11, nu02, nu30, nu21, nu12, nu03;
-            #define v0 superpixel_moments.m00
-            #define v1 superpixel_moments.mu02
-            #define v2 superpixel_moments.mu20
-            #define v3 superpixel_moments.mu11
+            const double v0 = superpixel_moments.m00,
+                    v1 = superpixel_moments.mu02,
+                    v2 = superpixel_moments.mu20,
+                    v3 = superpixel_moments.mu11;
             ImGui::Text("Area: %.1f", v0);
             ImGui::Text("Centroid: (%4.1f,%4.1f)", superpixel_moments.m10/v0, superpixel_moments.m01/v0);
             ImGui::Text("Covariance: [%4.1f %4.1f; . %4.1f]", v2/v0, v3/v0, v1/v0);
