@@ -1,8 +1,6 @@
 #include <string>
-#include <memory>
 #include <thread>
 #include <iostream>
-#include <iterator>
 #include <filesystem>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
@@ -18,60 +16,11 @@
 namespace fs = std::filesystem;
 namespace tf = tensorflow;
 
-void init() {
-    // run as: [program name] "0 -c" abc -a 1 -sdfl --flag -v 1 2.7 3 4 9 8.12 87
-    // [program name] -sdfv 1 -o "C:\Users\User Name\Directory - Name\file.dat" "C:\Users\User Name 2\Directory 2 - Name 2\file2.dat" C:/tmp/tmp.txt
-
-    // ArgumentParser parser("Argument parser example");
-    // parser.add_argument("-a", "an integer");
-    // parser.add_argument("-s", "an combined flag", true);
-    // parser.add_argument("-d", "an combined flag", true);
-    // parser.add_argument("-f", "an combined flag", true);
-    // parser.add_argument("--flag", "a flag");
-    // parser.add_argument("-v", "a vector", true);
-    // parser.add_argument("-l", "--long", "a long argument", false);
-    // parser.add_argument("--files", "input files", false);
-    // try {
-    //     parser.parse(argc, argv);
-    // } catch (const ArgumentParser::ArgumentNotFound& ex) {
-    //     std::cout << ex.what() << std::endl;
-    //     return 0;
-    // }
-    // if (parser.is_help()) return 0;
-    // std::cout << "a: " << parser.get<int>("a") << std::endl;
-    // std::cout << "flag: " << std::boolalpha << parser.get<bool>("flag")
-    //         << std::endl;
-    // std::cout << "d: " << std::boolalpha << parser.get<bool>("d") << std::endl;
-    // std::cout << "long flag: " << std::boolalpha << parser.get<bool>("l")
-    //         << std::endl;
-    // auto v = parser.getv<double>("v");
-    // std::cout << "v: ";
-    // std::copy(v.begin(), v.end(), std::ostream_iterator<double>(std::cout, " "));
-    // double sum;
-    // for (auto& d : v) sum += d;
-    // std::cout << " sum: " << sum << std::endl;
-    // auto f = parser.getv<std::string>("files");
-    // std::cout << "files: ";
-    // std::copy(f.begin(), f.end(),
-    //         std::ostream_iterator<std::string>(std::cout, " | "));
-    // std::cout << std::endl;
-    // f = parser.getv<std::string>("");
-    // std::cout << "free args: ";
-    // std::copy(f.begin(), f.end(),
-    //         std::ostream_iterator<std::string>(std::cout, " "));
-    // std::cout << std::endl;
-}
-
-struct VGG16SPComputeBuffer {
-    tf::uint8 frame[256 * 256 * 3];
-    tf::int32 superpixel[256 * 256];
-};
-
-void process_tif(const std::string &dataset, const std::string &fname, spt::dnn::IComputeFrameSuperpixel *dcnn) {
+void process_tif(const fs::path &dataset, const std::string &fname, spt::dnn::IComputeFrameSuperpixel *dcnn, const float chip_overlap, const int sp_size, bool verbose = false) {
     cv::Mat frame_raw = cv::imread(fname, cv::IMREAD_COLOR);
     cv::Size real_size = frame_raw.size();
-    const int width = 256, height = 256, size_class = 32;
-    spt::dnn::Chipping chips(real_size, cv::Size(width, height), 0.5); // TODO overlap as argument
+    const int width = 256, height = 256, size_class = sp_size;
+    spt::dnn::Chipping chips(real_size, cv::Size(width, height), chip_overlap);
 
     spt::GSLIC _superpixel({
                                    .img_size = { width, height },
@@ -150,7 +99,7 @@ order by st_area(bbox.xview_bounds_imcoords);");
             unsigned int nsp = superpixel->GetNumSuperpixels();
             superpixel->GetLabels(superpixel_labels);
 
-            #pragma omp critical DCNNInference
+            #pragma omp critical(DCNNInference)
             {
                 dcnn->Compute(frame_dcnn, superpixel_labels);
                 dcnn->GetFeature(superpixel_feature_buffer.data());
@@ -161,12 +110,9 @@ order by st_area(bbox.xview_bounds_imcoords);");
                 cv::findContours(superpixel_selected, superpixel_sel_contour, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
 
                 superpixel_moments = cv::moments(superpixel_sel_contour[0], true);
-#define v0 superpixel_moments.m00
-#define v1 superpixel_moments.mu02
-#define v2 superpixel_moments.mu20
-#define v3 superpixel_moments.mu11
-                if (v0 > 0) {
-                    float cxf32 = superpixel_moments.m10/v0+roi.x, cyf32 = superpixel_moments.m01/v0+roi.y;
+                const auto area = static_cast<float>(superpixel_moments.m00);
+                if (area > 0) {
+                    const auto cxf32 = static_cast<float>(superpixel_moments.m10/area+roi.x), cyf32 = static_cast<float>(superpixel_moments.m01/area+roi.y);
                     pqxx::work w_bbox(conn);
                     r = w_bbox.exec_prepared("sql_match_bbox2", image, (int)cxf32, (int)cyf32);
                     w_bbox.commit();
@@ -180,19 +126,22 @@ order by st_area(bbox.xview_bounds_imcoords);");
 
 //                        sps<<std::make_tuple(
 //                                frame_id, size_class,
-//                                v0, (int)cxf32, (int)cyf32,
+//                                area, (int)cxf32, (int)cyf32,
 //                                dcnn_name, superpixel_feature_strbuffer,
 //                                r[0]["xview_type_id"].as<int>(), class_label_multiplicity);
                         ++rows_inserted;
-//                        std::cout<<"<frame_id = "<<frame_id<<", chip = "<<roi<<", s = "<<s<<">"<<std::endl;
-//                        std::cout<<"  Area = "<<v0<<std::endl;
-//                        std::cout<<"  Centroid = "<<cxf32<<","<<cyf32<<std::endl;
-//                        std::cout<<"  Objects = "<<class_label_multiplicity<<std::endl;
-//                        std::cout<<"    ";
-//                        for(auto row: r) {
-//                            std::cout<<row["label_name"]<<". ";
-//                        }
-//                        std::cout<<std::endl;
+                        if (verbose) {
+                            std::cout << "<frame_id = " << frame_id << ", chip = " << roi << ", s = " << s << ">"
+                                      << std::endl;
+                            std::cout << "  Area = " << area << std::endl;
+                            std::cout << "  Centroid = " << cxf32 << "," << cyf32 << std::endl;
+                            std::cout << "  Objects = " << class_label_multiplicity << std::endl;
+                            std::cout << "    ";
+                            for (auto const &row: r) {
+                                std::cout << row["label_name"] << ". ";
+                            }
+                            std::cout << std::endl;
+                        }
                     }
                 }
 
@@ -207,14 +156,40 @@ order by st_area(bbox.xview_bounds_imcoords);");
     }
 }
 
-//const int NPROC = 2;
-
 int main(int argc, char* argv[]) {
     ///////////////////////////
-    // dcnn is shared across threads
-    // because TensorFlow does not like being forked
-    // and partitioning VRAM is counterproductive anyway.
-    // (it was multiprocessed, but I forgot about other CUDA things, so now switched to omp)
+    // Argument Parser
+    ///////////////////////////
+    ArgumentParser parser("Superpixel Feature Inference Pipeline");
+    parser.add_argument("-d", "Dataset location", true);
+    parser.add_argument("-c", "Chipping Overlap (=0.5)");
+    parser.add_argument("-s", "Superpixel Size (=32)");
+    try {
+        parser.parse(argc, argv);
+    } catch (const ArgumentParser::ArgumentNotFound& ex) {
+        std::cout << ex.what() << std::endl;
+        return 1;
+    }
+    if (parser.is_help()) return 0;
+
+    ///////////////////////////
+    // Dataset
+    ///////////////////////////
+    const fs::path dataset = fs::path(parser.get<std::string>("d"));
+    // std::string fname = "/tank/datasets/research/xView/train_images/1036.tif";
+
+    ///////////////////////////
+    // Chipping
+    ///////////////////////////
+    const float chip_overlap = parser.exists("c") ? parser.get<float>("c") : 0.5;
+
+    ///////////////////////////
+    // Superpixel
+    ///////////////////////////
+    const int sp_size = parser.exists("s") ? parser.get<int>("s") : 32;
+
+    ///////////////////////////
+    // DCNN Inference (shared across omp threads)
     ///////////////////////////
     spt::dnn::VGG16SP dcnn;
     dcnn.Summary();
@@ -229,19 +204,15 @@ int main(int argc, char* argv[]) {
     dcnn.SetInputResolution(256, 256);
 
     ///////////////////////////
-    // Dataset Location
+    // Parallel image directory scanning
     ///////////////////////////
-    std::string dataset = "/tank/datasets/research/xView";
-//    std::string fname = "/tank/datasets/research/xView/train_images/1036.tif";
-
-    os_misc::Glob train_images("/tank/datasets/research/xView/train_images/3*.tif");
-
+    os_misc::Glob train_images((dataset / "train_images/*.tif").string().c_str());
     #pragma omp parallel for default(none) shared(train_images, dataset, dcnn)
     for (size_t i = 0; i < train_images.size(); ++i) {
         int tid = omp_get_thread_num();
         std::string fname(train_images[i]);
         std::cout << "tid=" << tid << " Processing " << fname << std::endl;
-        process_tif(dataset, fname, &dcnn);
+        process_tif(dataset, fname, &dcnn, chip_overlap, sp_size);
     }
     return 0;
 }
