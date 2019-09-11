@@ -51,4 +51,31 @@ namespace os_misc {
         if (this->isChild() && nproc>1) // destroy the process itself
             ::_exit(0);
     }
+
+    IPCMutex::IPCMutex() {
+        pthread_mutexattr_t attr;
+        _err = pthread_mutexattr_init(&attr); if (_err) return;
+        _err = pthread_mutexattr_setpshared(&attr, PTHREAD_PROCESS_SHARED); if (_err) return;
+        _err = pthread_mutex_init(&_mutex, &attr); if (_err) return;
+        _err = pthread_mutexattr_destroy(&attr); if (_err) return;
+        _init = true;
+    }
+
+    IPCMutex::~IPCMutex() {
+        if(_init)
+            pthread_mutex_destroy(&_mutex);
+    }
+
+    IPCSem::IPCSem() {
+        ::sem_init(&_sem, 1, 1);
+    }
+
+    IPCSem::IPCSem(int pshared, unsigned int value) {
+        ::sem_init(&_sem, pshared, value);
+    }
+
+    IPCSem::~IPCSem() {
+        ::sem_destroy(&_sem);
+    }
+
 }

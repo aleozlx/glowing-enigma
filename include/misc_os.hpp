@@ -51,4 +51,87 @@ namespace os_misc {
     };
 }
 
+extern "C" {
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+}
+
+namespace os_misc {
+    template<typename D>
+    struct SharedMem {
+        bool _init = false;
+        const char *shm_name;
+        const size_t shm_size;
+        D *data;
+
+        /// The ctor only creates a header; call init() for shm allocation
+        SharedMem(const char *shm_name, size_t units): shm_name(shm_name), shm_size(units * sizeof(D)) {
+
+        }
+
+        ~SharedMem() {
+            if (_init) {
+                ::munmap(this->data, this->shm_size);
+                ::shm_unlink(shm_name);
+            }
+        }
+
+        /// Allocate memory; use placement new to construct object as needed
+        void init() {
+            int shm_fd = ::shm_open(shm_name, O_CREAT | O_RDWR, 0666);
+            ::ftruncate(shm_fd, shm_size);
+            this->data = static_cast<D *>(::mmap(0, shm_size, PROT_WRITE, MAP_SHARED, shm_fd, 0));
+            _init = true;
+        }
+    };
+}
+
+
+extern "C" {
+#include <semaphore.h>
+#include <pthread.h>
+}
+
+namespace os_misc {
+    struct IPCMutex {
+        bool _init = false;
+        pthread_mutex_t _mutex;
+        int _err;
+
+        IPCMutex();
+
+        ~IPCMutex();
+
+        inline int lock() {
+            return pthread_mutex_lock(&_mutex);
+        }
+
+        inline int unlock() {
+            return pthread_mutex_unlock(&_mutex);
+        }
+    };
+
+    struct IPCSem {
+        sem_t _sem;
+
+        IPCSem();
+        IPCSem(int pshared, unsigned int value);
+        ~IPCSem();
+
+        inline int wait() {
+            return ::sem_wait(&_sem);
+        }
+
+        inline int post() {
+            return ::sem_post(&_sem);
+        }
+    };
+
+    // Dummy data structure used to calculate the max size of IPC objects
+    union IPCMax {
+        IPCMutex _mutex;
+        IPCSem _sem;
+    };
+}
 #endif //GLOWING_ENIGMA_MISC_OS_HPP
