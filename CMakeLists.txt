@@ -4,12 +4,17 @@ set(CMAKE_CXX_STANDARD 17)
 set(OpenGL_GL_PREFERENCE GLVND)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/modules)
 
+# Feature options
+option(FEATURE_GUI "Enable GUI (requires OpenGL)")
+
 # GUI Packages
+if(FEATURE_GUI)
 find_package(OpenGL REQUIRED)
 find_package(GLEW REQUIRED)
 find_package(SOIL REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_search_module(GLFW REQUIRED glfw3)
+endif()
 
 # Computer Vision Packages
 find_package(OpenCV REQUIRED)
@@ -37,6 +42,7 @@ if(SPFREQ2_FOUND)
     add_definitions("-DHAS_SPFREQ2=${Spfreq2_VERSION}")
 endif()
 
+if(FEATURE_GUI)
 # ImGui Library
 set(root ${CMAKE_CURRENT_SOURCE_DIR}/imgui)
 set(phdrs ${root}/imgui.h)
@@ -45,11 +51,13 @@ set(hdrs ${root}/imstb_rectpack.h ${root}/imstb_textedit.h ${root}/imstb_truetyp
 set(srcs ${root}/imgui.cpp
     ${root}/imgui_demo.cpp ${root}/imgui_draw.cpp ${root}/imgui_widgets.cpp)
 
+
 add_library(imgui STATIC ${phdrs} ${hdrs} ${srcs})
 target_include_directories(imgui PUBLIC
     $<BUILD_INTERFACE:${root}>
     $<INSTALL_INTERFACE:include>)
 target_compile_definitions(imgui PUBLIC IMGUI_DISABLE_INCLUDE_IMCONFIG_H)
+endif()
 
 # gSLIC Library (optional)
 if(CUDA_FOUND)
@@ -88,12 +96,15 @@ include_directories(SYSTEM "/usr/include/opencv4")
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/gSLICr)
 
+if(FEATURE_GUI)
 # ImGui Demo
 add_executable(gui_demo ${CMAKE_CURRENT_SOURCE_DIR}/demos/imgui.cpp ${root}/examples/imgui_impl_glfw.cpp ${root}/examples/imgui_impl_opengl3.cpp)
 target_compile_definitions(gui_demo PUBLIC IMGUI_IMPL_OPENGL_LOADER_GLEW)
 target_include_directories(gui_demo PUBLIC ${root}/examples)
 target_link_libraries(gui_demo imgui ${SOIL_LIBRARY} ${GLFW_LIBRARIES} ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES})
+endif()
 
+if(FEATURE_GUI)
 # Superpixel Analyzer
 add_executable(superpixel_analyzer
     ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
@@ -122,6 +133,7 @@ target_link_libraries(superpixel_analyzer imgui ${SPFREQ2_LIBRARIES} ${SOIL_LIBR
     opencv_videoio
     opencv_video
 )
+endif()
 
 # Superpixel Processor
 add_executable(superpixel_process
@@ -158,6 +170,7 @@ target_link_libraries(superpixel_process ${SPFREQ2_LIBRARIES} fpconv
     opencv_video
 )
 
+if(FEATURE_GUI)
 # gSLIC Demo
 add_executable(gslic_demo
     ${CMAKE_CURRENT_SOURCE_DIR}/demos/gslic.cpp
@@ -179,6 +192,7 @@ target_link_libraries(gslic_demo imgui ${SOIL_LIBRARY} ${GLFW_LIBRARIES} ${GLEW_
     opencv_videoio
     opencv_video
 )
+endif()
 
 # Tests
 if(Boost_FOUND)
