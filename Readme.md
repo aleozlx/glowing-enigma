@@ -29,6 +29,9 @@
 
 ## Build
 
+Edit  `include/build_vars.hpp` first, some parameters are defined as macros and built into the executables,
+so that we do not have to pass them around all the time.
+
 ```sh
 mkdir build && cd build
 CC=$(which clang) CXX=$(which clang++) cmake ..
