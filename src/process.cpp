@@ -1,7 +1,11 @@
 #include <string>
 #include <thread>
 #include <iostream>
+#if __has_include(<filesystem>)
 #include <filesystem>
+#else
+#include <experimental/filesystem>
+#endif
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 #include <pqxx/pqxx>
