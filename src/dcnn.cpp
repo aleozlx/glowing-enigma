@@ -4,7 +4,7 @@
 namespace spt::dnn {
     namespace tf = tensorflow;
 
-#define MODEL_WEIGHTS "/tank/datasets/research/model_weights/"
+#include "build_vars.hpp"
 
     TensorFlowInference::TensorFlowInference(std::string const &graph_path) {
         tf::Status status = tf::ReadBinaryProto(tf::Env::Default(), graph_path, &graph);
