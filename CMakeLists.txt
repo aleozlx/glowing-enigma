@@ -25,7 +25,7 @@ find_package(TensorFlow)
 find_package(CUDA 10)
 
 # More Packages
-find_package(Filesystem REQUIRED)
+find_package(Filesystem REQUIRED Final Experimental)
 find_package(Boost)
 find_package(Spfreq2)
 find_package(LibPQXX)
