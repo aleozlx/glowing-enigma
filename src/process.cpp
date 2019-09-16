@@ -121,7 +121,7 @@ order by st_area(bbox.xview_bounds_imcoords);");
                 dcnn->GetFeature(superpixel_feature_buffer.data());
             }
 
-            for(int s = 0; s<nsp; ++s) {
+            for(unsigned int s = 0; s<nsp; ++s) {
                 superpixel_selected = superpixel_labels == s;
                 cv::findContours(superpixel_selected, superpixel_sel_contour, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
 
