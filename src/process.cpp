@@ -1,11 +1,6 @@
 #include <string>
 #include <thread>
 #include <iostream>
-#if __has_include(<filesystem>)
-#include <filesystem>
-#else
-#include <experimental/filesystem>
-#endif
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 #include <pqxx/pqxx>
@@ -17,7 +12,14 @@
 #include "dcnn.hpp"
 #include "saver.hpp"
 
+#if __has_include(<filesystem>)
+#include <filesystem>
 namespace fs = std::filesystem;
+#else
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
+#endif
+
 namespace tf = tensorflow;
 
 void process_tif(const fs::path &dataset, const std::string &fname, spt::dnn::IComputeFrameSuperpixel *dcnn, const float chip_overlap, const int sp_size, bool verbose = false) {
