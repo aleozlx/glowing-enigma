@@ -11,7 +11,7 @@
 * TensorFlow 1.14
   * libtensorflow_cc.so
   * libtensorflow_framework.so
-* PostgreSQL ^9.2
+* PostgreSQL ^11.5
 * libpqxx ^6.4
 * Spfreq2 (dynamically linked) - Superpixel feature extraction (CUDA)
   * spfreq2_op.so

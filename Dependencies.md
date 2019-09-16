@@ -47,8 +47,14 @@ pip install tensorflow-gpu
 PostgreSQL
 
 ```
-yum install postgresql-server postgresql-contrib
+# ref https://computingforgeeks.com/how-to-install-postgis-on-centos-7/
+rpm -Uvh https://yum.postgresql.org/11/redhat/rhel-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm
+yum install postgresql11-server postgresql11-contrib postgis25_11
+/usr/pgsql-11/bin/postgresql-11-setup initdb
+systemctl enable --now postgresql-11
 ```
+
+> sudo -iu postgres /usr/pgsql-11/bin/psql
 
 gcc8
 
