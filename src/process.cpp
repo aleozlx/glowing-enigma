@@ -55,7 +55,7 @@ order by st_area(bbox.xview_bounds_imcoords);");
         // cuz path lib in C++ is obnoxious af.
         std::string image = fname;
         {
-            std::string _dataset = dataset.string();
+            std::string _dataset = dataset.string() + "/";
             if(fname.find(_dataset) == 0)
                 image.erase(0, _dataset.length());
         }
