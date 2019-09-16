@@ -49,7 +49,17 @@ from frame join bbox on frame.id = bbox.frame_id join class_label on bbox.xview_
 where frame.image = $1 and st_point($2, $3) && bbox.xview_bounds_imcoords \
 order by st_area(bbox.xview_bounds_imcoords);");
         pqxx::work w_frame(conn);
+#if __has_include(<filesystem>)
         std::string image = fs::path(fname).lexically_relative(dataset).string();
+#else
+        // cuz path lib in C++ is obnoxious af.
+        std::string image = fname;
+        {
+            std::string _dataset = dataset.string();
+            if(fname.find(_dataset) == 0)
+                image.erase(0, _dataset.length());
+        }
+#endif
         std::cerr<<"Looking up frame_id for "<<image<<std::endl;
         pqxx::result r = w_frame.exec_prepared("sql_find_frame_id", image);
         w_frame.commit();
