@@ -25,6 +25,7 @@ find_package(TensorFlow)
 find_package(CUDA 10)
 
 # More Packages
+find_package(Filesystem REQUIRED)
 find_package(Boost)
 find_package(Spfreq2)
 find_package(LibPQXX)
@@ -160,6 +161,7 @@ if(OPENMP_FOUND)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
     target_link_libraries(superpixel_process ${OpenMP_CXX_LIBRARIES})
 endif()
+target_link_libraries(superpixel_process std::filesystem)
 target_link_libraries(superpixel_process ${SPFREQ2_LIBRARIES} fpconv
     opencv_core
     opencv_dnn
