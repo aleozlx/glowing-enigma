@@ -16,8 +16,12 @@ namespace spt::dnn {
     }
 
     TensorFlowInference::~TensorFlowInference() {
-        if (session)
-            session->Close();
+        if (session) {
+            tf::Status status = session->Close();
+            if (!status.ok()) {
+                std::cerr << "Failed to close a tf::Session." << std::endl;
+            }
+        }
     }
 
     void TensorFlowInference::Summary() {
