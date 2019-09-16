@@ -222,8 +222,10 @@ int main(int argc, char* argv[]) {
     ///////////////////////////
     // Parallel image directory scanning
     ///////////////////////////
+    // Limit number of threads because each thread is holding expensive resources
+    size_t nproc_omp = std::max(omp_get_max_threads(), 8);
     os_misc::Glob train_images((dataset / "train_images/*.tif").string().c_str());
-    #pragma omp parallel for default(none) shared(train_images, dataset, dcnn)
+    #pragma omp parallel for num_threads(nproc_omp) default(none) shared(train_images, dataset, dcnn)
     for (size_t i = 0; i < train_images.size(); ++i) {
         int tid = omp_get_thread_num();
         std::string fname(train_images[i]);
