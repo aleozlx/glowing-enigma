@@ -7,3 +7,6 @@
 [submodule "extras"]
 	path = extras
 	url = git@gitlab-p01.cgi.missouri.edu:ExternalUsers/AlexYang_Fun/glowing-enigma-extras.git
+[submodule "tfexport"]
+	path = tfexport
+	url = https://github.com/aleozlx/tfexport.git

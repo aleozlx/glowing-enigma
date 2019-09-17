@@ -140,11 +140,11 @@ order by st_area(bbox.xview_bounds_imcoords);");
                                 dcnn->GetNSP(),
                                 superpixel_feature_strbuffer);
 
-//                        sps<<std::make_tuple(
-//                                frame_id, size_class,
-//                                area, (int)cxf32, (int)cyf32,
-//                                dcnn_name, superpixel_feature_strbuffer,
-//                                r[0]["xview_type_id"].as<int>(), class_label_multiplicity);
+                        sps<<std::make_tuple(
+                                frame_id, size_class,
+                                area, (int)cxf32, (int)cyf32,
+                                dcnn_name, superpixel_feature_strbuffer,
+                                r[0]["xview_type_id"].as<int>(), class_label_multiplicity);
                         ++rows_inserted;
                         if (verbose) {
                             std::cout << "<frame_id = " << frame_id << ", chip = " << roi << ", s = " << s << ">"
