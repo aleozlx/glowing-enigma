@@ -22,7 +22,7 @@ namespace fs = std::experimental::filesystem;
 
 namespace tf = tensorflow;
 
-void process_tif(const fs::path &dataset, const std::string &fname, spt::dnn::IComputeFrameSuperpixel *dcnn, const float chip_overlap, const int sp_size, bool verbose = false) {
+void process_tif(const fs::path &dataset, const std::string &fname, spt::dnn::IComputeFrameSuperpixel *dcnn, const float chip_overlap, const std::string &dcnn_name, const int sp_size, bool verbose = false) {
     cv::Mat frame_raw = cv::imread(fname, cv::IMREAD_COLOR);
     cv::Size real_size = frame_raw.size();
     const int width = 256, height = 256, size_class = sp_size;
@@ -85,7 +85,7 @@ order by st_area(bbox.xview_bounds_imcoords);");
             spt::ISuperpixel *superpixel = _superpixel.Compute(frame);
             ct_superpixel += superpixel->GetNumSuperpixels();
         }
-        std::cout<<"Estimated number of superpixels: "<<ct_superpixel<<std::endl;
+        std::cout<<"Superpixels to be scanned: "<<ct_superpixel<<std::endl;
 
         pqxx::connection conn2("dbname=xview user=postgres");
         pqxx::work w_spstream(conn2);
@@ -103,7 +103,7 @@ order by st_area(bbox.xview_bounds_imcoords);");
                         "class_label_multiplicity"
                 }
         };
-        std::string dcnn_name = "VGG16SP_test";
+
         int rows_inserted = 0;
         for(int chip_id = 0; chip_id<chips.nchip; ++chip_id) {
             roi = chips.GetROI(chip_id);
@@ -119,6 +119,7 @@ order by st_area(bbox.xview_bounds_imcoords);");
             {
                 dcnn->Compute(frame_dcnn, superpixel_labels);
                 dcnn->GetFeature(superpixel_feature_buffer.data());
+
             }
 
             for(unsigned int s = 0; s<nsp; ++s) {
@@ -177,6 +178,7 @@ int main(int argc, char* argv[]) {
     // Argument Parser
     ///////////////////////////
     ArgumentParser parser("Superpixel Feature Inference Pipeline");
+    parser.add_argument("-n", "DCNN name", true);
     parser.add_argument("-d", "Dataset location", true);
     parser.add_argument("-c", "Chipping Overlap (=0.5)");
     parser.add_argument("-s", "Superpixel Size (=32)");
@@ -207,6 +209,7 @@ int main(int argc, char* argv[]) {
     ///////////////////////////
     // DCNN Inference (shared across omp threads)
     ///////////////////////////
+    const std::string dcnn_name = parser.get<std::string>("n");
     spt::dnn::VGG16SP dcnn;
     dcnn.Summary();
     tf::SessionOptions options;
@@ -225,12 +228,12 @@ int main(int argc, char* argv[]) {
     // Limit number of threads because each thread is holding expensive resources
     size_t nproc_omp = std::min(omp_get_max_threads(), 20);
     os_misc::Glob train_images((dataset / "train_images/*.tif").string().c_str());
-    #pragma omp parallel for num_threads(nproc_omp) default(none) shared(train_images, dataset, dcnn)
+    #pragma omp parallel for num_threads(nproc_omp) default(none) shared(dataset, train_images, dcnn_name, dcnn)
     for (size_t i = 0; i < train_images.size(); ++i) {
         int tid = omp_get_thread_num();
         std::string fname(train_images[i]);
         std::cout << "tid=" << tid << " Processing " << fname << std::endl;
-        process_tif(dataset, fname, &dcnn, chip_overlap, sp_size);
+        process_tif(dataset, fname, &dcnn, chip_overlap, dcnn_name, sp_size);
     }
     return 0;
 }
