@@ -1,9 +1,10 @@
 ## Toolchain
 
 * cmake ^3.8
-* clang++ ^8
+* clang++ 8.0.1
 * OpenMP
-* CUDA ^10
+* CUDA 10.1
+* cuDNN ^7.6
 
 ## Dependencies
 
