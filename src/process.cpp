@@ -119,7 +119,7 @@ order by st_area(bbox.xview_bounds_imcoords);");
             {
                 dcnn->Compute(frame_dcnn, superpixel_labels);
                 dcnn->GetFeature(superpixel_feature_buffer.data());
-
+                // TODO Output gSLIC nsp somewhere std::cout<<"nsp "<<nsp<<std::endl;
             }
 
             for(unsigned int s = 0; s<nsp; ++s) {
@@ -137,8 +137,8 @@ order by st_area(bbox.xview_bounds_imcoords);");
                     if(r.size() > 0) {
                         spt::pgsaver::vec2str(
                                 superpixel_feature_buffer,
-                                (s*dcnn->GetNSP()),
-                                dcnn->GetNSP(),
+                                (s*dcnn->GetFeatureDim()),
+                                dcnn->GetFeatureDim(),
                                 superpixel_feature_strbuffer);
 
                         sps<<std::make_tuple(
