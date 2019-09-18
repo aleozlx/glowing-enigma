@@ -239,15 +239,16 @@ int main(int argc, char* argv[]) {
         process_tif(dataset, fname, &dcnn, chip_overlap, dcnn_name, sp_size);
     }
 
-    os_misc::Glob val_images((dataset / "val_images/*.tif").string().c_str());
-    #pragma omp parallel for num_threads(nproc_omp) default(none) shared(dataset, val_images, dcnn_name, dcnn)
-    for (size_t i = 0; i < val_images.size(); ++i) {
-        int tid = omp_get_thread_num();
-        std::string fname(val_images[i]);
-        std::stringstream ss;
-        ss << "tid=" << tid << " Processing " << fname << std::endl;
-        std::cout << ss.str(); // std::cout is thread-safe
-        process_tif(dataset, fname, &dcnn, chip_overlap, dcnn_name, sp_size);
-    }
+// val_images did not match any metadata
+//    os_misc::Glob val_images((dataset / "val_images/*.tif").string().c_str());
+//    #pragma omp parallel for num_threads(nproc_omp) default(none) shared(dataset, val_images, dcnn_name, dcnn)
+//    for (size_t i = 0; i < val_images.size(); ++i) {
+//        int tid = omp_get_thread_num();
+//        std::string fname(val_images[i]);
+//        std::stringstream ss;
+//        ss << "tid=" << tid << " Processing " << fname << std::endl;
+//        std::cout << ss.str(); // std::cout is thread-safe
+//        process_tif(dataset, fname, &dcnn, chip_overlap, dcnn_name, sp_size);
+//    }
     return 0;
 }
