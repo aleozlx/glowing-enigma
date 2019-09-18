@@ -1,6 +1,7 @@
 #include <string>
 #include <thread>
 #include <iostream>
+#include <sstream>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 #include <pqxx/pqxx>
@@ -226,13 +227,26 @@ int main(int argc, char* argv[]) {
     // Parallel image directory scanning
     ///////////////////////////
     // Limit number of threads because each thread is holding expensive resources
-    size_t nproc_omp = std::min(omp_get_max_threads(), 20);
+    size_t nproc_omp = std::min(omp_get_max_threads(), 16);
     os_misc::Glob train_images((dataset / "train_images/*.tif").string().c_str());
     #pragma omp parallel for num_threads(nproc_omp) default(none) shared(dataset, train_images, dcnn_name, dcnn)
     for (size_t i = 0; i < train_images.size(); ++i) {
         int tid = omp_get_thread_num();
         std::string fname(train_images[i]);
-        std::cout << "tid=" << tid << " Processing " << fname << std::endl;
+        std::stringstream ss;
+        ss << "tid=" << tid << " Processing " << fname << std::endl;
+        std::cout << ss.str(); // std::cout is thread-safe
+        process_tif(dataset, fname, &dcnn, chip_overlap, dcnn_name, sp_size);
+    }
+
+    os_misc::Glob val_images((dataset / "val_images/*.tif").string().c_str());
+    #pragma omp parallel for num_threads(nproc_omp) default(none) shared(dataset, val_images, dcnn_name, dcnn)
+    for (size_t i = 0; i < val_images.size(); ++i) {
+        int tid = omp_get_thread_num();
+        std::string fname(val_images[i]);
+        std::stringstream ss;
+        ss << "tid=" << tid << " Processing " << fname << std::endl;
+        std::cout << ss.str(); // std::cout is thread-safe
         process_tif(dataset, fname, &dcnn, chip_overlap, dcnn_name, sp_size);
     }
     return 0;
