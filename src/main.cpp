@@ -213,11 +213,12 @@ SIZE gdiv(SIZE a, SIZE b) {
 
 class SuperpixelAnalyzerWindow2: public IWindow {
     public:
-    SuperpixelAnalyzerWindow2(int frame_width, int frame_height, std::string fname, float superpixel_size):
+    SuperpixelAnalyzerWindow2(int frame_width, int frame_height, std::string fname, float superpixel_size, bool dcnn_enable=true):
         io(ImGui::GetIO()),
         width(frame_width),
         height(frame_height),
-        superpixel_size(superpixel_size)
+        superpixel_size(superpixel_size),
+        dcnn_enable(dcnn_enable)
     {
         this->fname = fname;
         std::string id = "xView";
@@ -257,10 +258,12 @@ class SuperpixelAnalyzerWindow2: public IWindow {
         #else
         _superpixel = spt::OpenCVSLIC(superpixel_size, 30.0f, 3, 10.0f);
         #endif
-        
-        dcnn.Summary();
-        dcnn.NewSession();
-        dcnn.SetInputResolution(256, 256);
+
+        if (dcnn_enable) {
+            dcnn.Summary();
+            dcnn.NewSession();
+            dcnn.SetInputResolution(256, 256);
+        }
         this->_is_shown = true;
         return dynamic_cast<IWindow*>(this);
     }
@@ -375,7 +378,7 @@ class SuperpixelAnalyzerWindow2: public IWindow {
             ImGui::TreePop();
         }
 
-        if (ImGui::TreeNode("Superpixel DCNN Features")) {
+        if (dcnn_enable && ImGui::TreeNode("Superpixel DCNN Features")) {
             dcnn.Compute(frame_dcnn, superpixel_labels);
             superpixel_feature_buffer.resize(dcnn.GetFeatureDim());
             dcnn.GetFeature(superpixel_id, superpixel_feature_buffer.data());
@@ -412,6 +415,7 @@ class SuperpixelAnalyzerWindow2: public IWindow {
     bool normalize_component = true;
     int d_chip_id = 0;
     spt::dnn::Chipping chips;
+    const bool dcnn_enable;
 
     cv::Mat frame_raw, frame, frame_rgb, frame_dcnn;
     cv::Mat superpixel_contour, superpixel_labels, superpixel_selected;
@@ -436,17 +440,20 @@ class PipelineSettingsWindow: public IStaticWindow {
         }
 
         static CameraInfo *d_camera_current = &cameras[0];
-        if(ImGui::TreeNode("Video Feed") && cameras.size()>0) {
-            if (ImGui::BeginCombo("Source", d_camera_current->name.c_str())) {
-                for (auto &camera_info: cameras) {
-                    bool is_selected = (d_camera_current == &camera_info);
-                    if (ImGui::Selectable(camera_info.name.c_str(), is_selected))
-                        d_camera_current = &camera_info;
-                    if (is_selected)
-                        ImGui::SetItemDefaultFocus();
+        if(ImGui::TreeNode("Video Feed")) {
+            if (cameras.size()>0) {
+                if (ImGui::BeginCombo("Source", d_camera_current->name.c_str())) {
+                    for (auto &camera_info: cameras) {
+                        bool is_selected = (d_camera_current == &camera_info);
+                        if (ImGui::Selectable(camera_info.name.c_str(), is_selected))
+                            d_camera_current = &camera_info;
+                        if (is_selected)
+                            ImGui::SetItemDefaultFocus();
+                    }
+                    ImGui::EndCombo();
                 }
-                ImGui::EndCombo();
             }
+            else ImGui::Text("No cameras found.");
             ImGui::TreePop();
         }
 
@@ -492,17 +499,46 @@ class DatasetWindow: public IStaticWindow {
             ImGui::TreePop();
         }
 
-        static float d_superpixel_size = 32.0f;
+        static float d_superpixel_size = 8.0f;
         #ifdef HAS_LIBGSLIC // with gSLIC, it is not efficient to use different superpixel sizes over time
         if(ImGui::TreeNode("Superpixels")) { 
-            ImGui::SliderFloat("Superpixel Size", &d_superpixel_size, 15.0f, 80.0f);
+            ImGui::SliderFloat("Superpixel Size", &d_superpixel_size, 5.6f, 24.0f);
             ImGui::TreePop();
         }
         #endif
+
+        static bool d_dcnn_enable = true;
+        if(ImGui::TreeNode("DCNN")) {
+            ImGui::Checkbox("Enable", &d_dcnn_enable);
+            ImGui::TreePop();
+        }
+
+        static int chip_size = 256;
+        if(!d_dcnn_enable && ImGui::TreeNode("Chip Size")) {
+            if (ImGui::RadioButton("256x256", chip_size == 256)) {
+                chip_size = 256;
+            }
+            ImGui::SameLine();
+            if (ImGui::RadioButton("400x400", chip_size == 400)) {
+                chip_size = 400;
+            }
+            ImGui::SameLine();
+            if (ImGui::RadioButton("800x800", chip_size == 800)) {
+                chip_size = 800;
+            }
+            ImGui::TreePop();
+        }
+
         ImGui::Separator();
 
         if(ImGui::Button("Initialize")) {
-            auto w = std::make_unique<SuperpixelAnalyzerWindow2>(256, 256, "/tank/datasets/research/xView/train_images/1036.tif", d_superpixel_size);
+            const auto frame_width = chip_size;
+            const auto frame_height = chip_size;
+            auto w = std::make_unique<SuperpixelAnalyzerWindow2>(
+                 frame_width, frame_height,
+                "/tank/datasets/research/xView/train_images/1036.tif",
+                d_superpixel_size,
+                d_dcnn_enable);
             if (w->Show() != nullptr)
                 windows.push_back(std::move(w));
         }
@@ -511,6 +547,7 @@ class DatasetWindow: public IStaticWindow {
     }
 };
 
+#if 0
 class MomentsWindow: public IWindow {
     public:
     MomentsWindow(int frame_width, int frame_height, CameraInfo *_camera_info):
@@ -762,6 +799,7 @@ class CustomRenderTestWindow: public TestWindow {
         //     ImGui::TreePop();
         // }
 };
+#endif
 
 int main(int, char**) {
     App app = App::Initialize();
@@ -769,7 +807,7 @@ int main(int, char**) {
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     cameras = cv_misc::camera_enumerate2();
     datasets.push_back("xView");
-    windows.push_back(std::make_unique<PipelineSettingsWindow>());
+//    windows.push_back(std::make_unique<PipelineSettingsWindow>());
     windows.push_back(std::make_unique<DatasetWindow>());
 
     while (app.EventLoop()){
