@@ -21,15 +21,18 @@ namespace fs = std::experimental::filesystem;
 const unsigned int WIDTH = 432;
 const unsigned int HEIGHT = 240;
 
+static std::vector<std::tuple<std::string, std::string>> datasets;
+static std::vector<cv_misc::CameraInfo> cameras;
+static std::list<std::unique_ptr<IWindow>> windows;
+
 class SuperpixelAnalyzerWindow: public IWindow {
-    public:
-    SuperpixelAnalyzerWindow(int frame_width, int frame_height, CameraInfo *_camera_info):
-        io(ImGui::GetIO()),
-        width(frame_width),
-        height(frame_height),
-        _camera_info(_camera_info),
-        cam(_camera_info->id, frame_width, frame_height)
-    {
+public:
+    SuperpixelAnalyzerWindow(int frame_width, int frame_height, cv_misc::CameraInfo *_camera_info) :
+            io(ImGui::GetIO()),
+            width(frame_width),
+            height(frame_height),
+            _camera_info(_camera_info),
+            cam(_camera_info->id, frame_width, frame_height) {
         std::string id = _camera_info->name; //IWindow::uuid(5);
         std::snprintf(_title, IM_ARRAYSIZE(_title), "Superpixel Analyzer [%s]", id.c_str());
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
@@ -39,7 +42,7 @@ class SuperpixelAnalyzerWindow: public IWindow {
         _camera_info->Release();
     }
 
-    IWindow* Show() override {
+    IWindow *Show() override {
         if (!cam.open()) {
             // Cannot receive video feed
             this->_is_shown = false;
@@ -52,26 +55,26 @@ class SuperpixelAnalyzerWindow: public IWindow {
         channels = 3;
         imSuperpixels = TexImage(width, height, channels);
         imHistogram = TexImage(width - 20, height, channels);
-        #ifdef HAS_LIBGSLIC
+#ifdef HAS_LIBGSLIC
         _superpixel = spt::GSLIC({
-            .img_size = { width, height },
-            .no_segs = 64,
-            .spixel_size = 32,
-            .no_iters = 5,
-            .coh_weight = 0.6f,
-            .do_enforce_connectivity = true,
-            .color_space = gSLICr::XYZ, // gSLICr::CIELAB | gSLICr::RGB
-            .seg_method = gSLICr::GIVEN_SIZE // gSLICr::GIVEN_NUM
-        });
-        #else
+                                         .img_size = {width, height},
+                                         .no_segs = 64,
+                                         .spixel_size = 32,
+                                         .no_iters = 5,
+                                         .coh_weight = 0.6f,
+                                         .do_enforce_connectivity = true,
+                                         .color_space = gSLICr::XYZ, // gSLICr::CIELAB | gSLICr::RGB
+                                         .seg_method = gSLICr::GIVEN_SIZE // gSLICr::GIVEN_NUM
+                                 });
+#else
         _superpixel = spt::OpenCVSLIC(32, 30.0f, 3, 10.0f);
-        #endif
+#endif
         dcnn.Summary();
         dcnn.NewSession();
         dcnn.SetInputResolution(256, 256);
-        
+
         this->_is_shown = true;
-        return dynamic_cast<IWindow*>(this);
+        return dynamic_cast<IWindow *>(this);
     }
 
     bool Draw() override {
@@ -80,38 +83,45 @@ class SuperpixelAnalyzerWindow: public IWindow {
         cam.capture >> frame;
         cv::cvtColor(frame, frame_rgb, cv::COLOR_BGR2RGB);
         frame_dcnn = frame_rgb.clone();
-        spt::ISuperpixel* superpixel = _superpixel.Compute(frame);
+        spt::ISuperpixel *superpixel = _superpixel.Compute(frame);
         superpixel->GetLabels(superpixel_labels);
         superpixel_id = superpixel_labels.at<unsigned int>(pointer_y, pointer_x);
         superpixel_selected = superpixel_labels == superpixel_id;
         switch (sel.mode) {
             case SuperpixelSelection::Mode::None:
-            break;
+                break;
 
             case SuperpixelSelection::Mode::Spotlight:
-            cv_misc::fx::spotlight(frame_rgb, superpixel_selected, 0.5);
-            superpixel->GetContour(superpixel_contour);
-            frame_rgb.setTo(cv::Scalar(200, 5, 240), superpixel_contour);
-            break;
+                cv_misc::fx::spotlight(frame_rgb, superpixel_selected, 0.5);
+                superpixel->GetContour(superpixel_contour);
+                frame_rgb.setTo(cv::Scalar(200, 5, 240), superpixel_contour);
+                break;
 
             case SuperpixelSelection::Mode::Contour:
-            cv::findContours(superpixel_selected, superpixel_sel_contour, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
-            cv::drawContours(frame_rgb, superpixel_sel_contour, 0, cv::Scalar(200, 5, 240), 2);
-            break;
+                cv::findContours(superpixel_selected, superpixel_sel_contour, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
+                cv::drawContours(frame_rgb, superpixel_sel_contour, 0, cv::Scalar(200, 5, 240), 2);
+                break;
         }
-        
+
         imSuperpixels.Load(frame_rgb.data);
         ImGui::Text("(%d, %d) => (%d,)", imSuperpixels.width, imSuperpixels.height, superpixel->GetNumSuperpixels());
         ImVec2 pos = ImGui::GetCursorScreenPos();
-        ImGui::Image(imSuperpixels.id(), imSuperpixels.size(), ImVec2(0,0), ImVec2(1,1), ImVec4(1.0f,1.0f,1.0f,1.0f), ImVec4(1.0f,1.0f,1.0f,0.5f));
+        ImGui::Image(imSuperpixels.id(), imSuperpixels.size(), ImVec2(0, 0), ImVec2(1, 1),
+                     ImVec4(1.0f, 1.0f, 1.0f, 1.0f), ImVec4(1.0f, 1.0f, 1.0f, 0.5f));
         if (ImGui::IsItemHovered()) {
             pointer_x = static_cast<int>(io.MousePos.x - pos.x);
             pointer_y = static_cast<int>(io.MousePos.y - pos.y);
             if (use_magnifier) {
                 ImGui::BeginTooltip();
                 float region_sz = 32.0f;
-                float region_x = io.MousePos.x - pos.x - region_sz * 0.5f; if (region_x < 0.0f) region_x = 0.0f; else if (region_x > imSuperpixels.f32width - region_sz) region_x = imSuperpixels.f32width - region_sz;
-                float region_y = io.MousePos.y - pos.y - region_sz * 0.5f; if (region_y < 0.0f) region_y = 0.0f; else if (region_y > imSuperpixels.f32height - region_sz) region_y = imSuperpixels.f32height - region_sz;
+                float region_x = io.MousePos.x - pos.x - region_sz * 0.5f;
+                if (region_x < 0.0f) region_x = 0.0f;
+                else if (region_x > imSuperpixels.f32width - region_sz)
+                    region_x = imSuperpixels.f32width - region_sz;
+                float region_y = io.MousePos.y - pos.y - region_sz * 0.5f;
+                if (region_y < 0.0f) region_y = 0.0f;
+                else if (region_y > imSuperpixels.f32height - region_sz)
+                    region_y = imSuperpixels.f32height - region_sz;
                 float zoom = 4.0f;
                 ImGui::Text("Ptr: (%d,%d) Id: %d", pointer_x, pointer_y, superpixel_id);
                 cv::Scalar sel_mean, sel_std;
@@ -119,16 +129,18 @@ class SuperpixelAnalyzerWindow: public IWindow {
                 ImGui::Text("Mean: (%.1f,%.1f,%.1f)", sel_mean[0], sel_mean[1], sel_mean[2]);
                 ImGui::Text("Std: (%.1f,%.1f,%.1f)", sel_std[0], sel_std[1], sel_std[2]);
                 ImGui::Image(
-                    imSuperpixels.id(), ImVec2(region_sz * zoom, region_sz * zoom),
-                    imSuperpixels.uv(region_x, region_y), imSuperpixels.uv(region_x + region_sz, region_y + region_sz),
-                    ImVec4(1.0f, 1.0f, 1.0f, 1.0f), ImVec4(1.0f, 1.0f, 1.0f, 0.5f));
+                        imSuperpixels.id(), ImVec2(region_sz * zoom, region_sz * zoom),
+                        imSuperpixels.uv(region_x, region_y),
+                        imSuperpixels.uv(region_x + region_sz, region_y + region_sz),
+                        ImVec4(1.0f, 1.0f, 1.0f, 1.0f), ImVec4(1.0f, 1.0f, 1.0f, 0.5f));
                 ImGui::EndTooltip();
             }
         }
-        #ifndef HAS_LIBGSLIC // with OpenCV SLIC, it is possible to use different superpixel sizes over time
+#ifndef HAS_LIBGSLIC // with OpenCV SLIC, it is possible to use different superpixel sizes over time
         ImGui::SliderFloat("Superpixel Size", &_superpixel.superpixel_size, 15.0f, 80.0f);
-        #endif
-        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+#endif
+        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate,
+                    ImGui::GetIO().Framerate);
         ImGui::Checkbox("Magnifier", &use_magnifier);
         if (ImGui::RadioButton("None", sel.mode == SuperpixelSelection::Mode::None)) {
             sel.mode = SuperpixelSelection::Mode::None;
@@ -144,10 +156,12 @@ class SuperpixelAnalyzerWindow: public IWindow {
 
         if (ImGui::TreeNode("RGB Histogram")) {
             ImGui::Checkbox("Normalize Superpixel", &normalize_component);
-            cv_misc::fx::RGBHistogram hist(frame, imHistogram.width, imHistogram.height, (sel?0.3f:1.0f), normalize_component);
-            hist.Compute(histogram_rgb, sel?superpixel_selected:cv::noArray());
+            cv_misc::fx::RGBHistogram hist(frame, imHistogram.width, imHistogram.height, (sel ? 0.3f : 1.0f),
+                                           normalize_component);
+            hist.Compute(histogram_rgb, sel ? superpixel_selected : cv::noArray());
             imHistogram.Load(histogram_rgb.data);
-            ImGui::Image(imHistogram.id(), imHistogram.size(), ImVec2(0,0), ImVec2(1,1), ImVec4(1.0f,1.0f,1.0f,1.0f), ImVec4(1.0f,1.0f,1.0f,0.5f));
+            ImGui::Image(imHistogram.id(), imHistogram.size(), ImVec2(0, 0), ImVec2(1, 1),
+                         ImVec4(1.0f, 1.0f, 1.0f, 1.0f), ImVec4(1.0f, 1.0f, 1.0f, 0.5f));
             ImGui::TreePop();
         }
 
@@ -164,21 +178,22 @@ class SuperpixelAnalyzerWindow: public IWindow {
                     v2 = superpixel_moments.mu20,
                     v3 = superpixel_moments.mu11;
             ImGui::Text("Area: %.1f", v0);
-            ImGui::Text("Centroid: (%4.1f,%4.1f)", superpixel_moments.m10/v0, superpixel_moments.m01/v0);
-            ImGui::Text("Covariance: [%4.1f %4.1f; . %4.1f]", v2/v0, v3/v0, v1/v0);
-            double d = sqrt(v3*v3*4+(v1-v2)*(v1-v2));
-            double e1 = (v1+v2+d)/(2*v0), e2 = (v1+v2-d)/(2*v0);
+            ImGui::Text("Centroid: (%4.1f,%4.1f)", superpixel_moments.m10 / v0, superpixel_moments.m01 / v0);
+            ImGui::Text("Covariance: [%4.1f %4.1f; . %4.1f]", v2 / v0, v3 / v0, v1 / v0);
+            double d = sqrt(v3 * v3 * 4 + (v1 - v2) * (v1 - v2));
+            double e1 = (v1 + v2 + d) / (2 * v0), e2 = (v1 + v2 - d) / (2 * v0);
             ImGui::Text("Eigenvalues: (%4.1f,%4.1f)", e1, e2);
-            ImGui::Text("Eccentricity: %4.1f", sqrt(1.0-e2/e1));
+            ImGui::Text("Eccentricity: %4.1f", sqrt(1.0 - e2 / e1));
             double hu[7];
             cv::HuMoments(superpixel_moments, hu);
-            ImGui::Text("Hu: %4.1f %4.1f %4.1f %4.1f %4.1f %4.1f %4.1f", hu[0], hu[1], hu[2], hu[3], hu[4], hu[5], hu[6]);
+            ImGui::Text("Hu: %4.1f %4.1f %4.1f %4.1f %4.1f %4.1f %4.1f", hu[0], hu[1], hu[2], hu[3], hu[4], hu[5],
+                        hu[6]);
             ImGui::TreePop();
         }
 
         if (ImGui::TreeNode("Superpixel DCNN Features")) {
             dcnn.Compute(frame_dcnn);
-            
+
             ImGui::TreePop();
         }
 
@@ -186,18 +201,18 @@ class SuperpixelAnalyzerWindow: public IWindow {
         return true;
     }
 
-    protected:
-    ImGuiIO& io;
+protected:
+    ImGuiIO &io;
     int width, height, channels;
-    CameraInfo *_camera_info;
-    Camera cam;
+    cv_misc::CameraInfo *_camera_info;
+    cv_misc::Camera cam;
     TexImage imSuperpixels;
     TexImage imHistogram;
-    #ifdef HAS_LIBGSLIC
+#ifdef HAS_LIBGSLIC
     spt::GSLIC _superpixel;
-    #else
+#else
     spt::OpenCVSLIC _superpixel;
-    #endif
+#endif
     spt::dnn::VGG16 dcnn;
 
     bool _is_shown = false;
@@ -213,7 +228,7 @@ class SuperpixelAnalyzerWindow: public IWindow {
     std::vector<std::vector<cv::Point>> superpixel_sel_contour;
     cv::Moments superpixel_moments;
     cv::Mat histogram_rgb;
-    
+
 };
 
 template <typename SIZE>
@@ -222,53 +237,54 @@ SIZE gdiv(SIZE a, SIZE b) {
 }
 
 class SuperpixelAnalyzerWindow2: public IWindow {
-    protected:
-        template<typename T>
-        struct LazyLoader {
-            T val, _new_val;
+protected:
+    template<typename T>
+    struct LazyLoader {
+        T val, _new_val;
 
-            explicit LazyLoader(T init_val): val(init_val) {
+        explicit LazyLoader(T init_val) : val(init_val) {
 
+        }
+
+        /// Sync value to a temp var for data binding
+        T *operator&() { // NOLINT I know exactly what I am doing!
+            _new_val = val;
+            return &_new_val;
+        }
+
+        /// Sync value back and detect changes
+        bool Update() {
+            return Update(_new_val);
+        }
+
+        /// Update value and detect changes
+        bool Update(T new_val) {
+            if (new_val == val) return false;
+            else {
+                val = new_val;
+                return true;
             }
+        }
+    };
 
-            /// Sync value to a temp var for data binding
-            T* operator&() { // NOLINT I know exactly what I am doing!
-                _new_val = val;
-                return &_new_val;
-            }
-
-            /// Sync value back and detect changes
-            bool Update() {
-                return Update(_new_val);
-            }
-
-            /// Update value and detect changes
-            bool Update(T new_val) {
-                if(new_val == val) return false;
-                else {
-                    val = new_val;
-                    return true;
-                }
-            }
-        };
-    public:
-    SuperpixelAnalyzerWindow2(int frame_width, int frame_height, std::string glob_pattern, float superpixel_size, float chip_overlap, bool dcnn_enable=true):
-        io(ImGui::GetIO()),
-        width(frame_width),
-        height(frame_height),
-        glob_dataset(glob_pattern.c_str()),
-        d_image_id(0),
-        superpixel_size(superpixel_size),
-        chip_overlap(chip_overlap),
-        dcnn_enable(dcnn_enable)
-    {
+public:
+    SuperpixelAnalyzerWindow2(int frame_width, int frame_height, std::string glob_pattern, float superpixel_size,
+                              float chip_overlap, bool dcnn_enable = true) :
+            io(ImGui::GetIO()),
+            width(frame_width),
+            height(frame_height),
+            glob_dataset(glob_pattern.c_str()),
+            d_image_id(0),
+            superpixel_size(superpixel_size),
+            chip_overlap(chip_overlap),
+            dcnn_enable(dcnn_enable) {
         std::string id = "xView";
         std::snprintf(_title, IM_ARRAYSIZE(_title), "Superpixel Analyzer [%s]", id.c_str());
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
     }
 
-    IWindow* Show() override {
-        if(glob_dataset.size()<=0)
+    IWindow *Show() override {
+        if (glob_dataset.size() <= 0)
             return nullptr;
 
         //"/tank/datasets/research/xView/train_images/1036.tif";
@@ -279,23 +295,23 @@ class SuperpixelAnalyzerWindow2: public IWindow {
         width = frame_size.width;
         height = frame_size.height;
         channels = 3;
-        std::cout<<"Superpixel processing size "<<width<<"x"<<height<<std::endl;
+        std::cout << "Superpixel processing size " << width << "x" << height << std::endl;
         imSuperpixels = TexImage(width, height, channels);
         imHistogram = TexImage(width - 20, height, channels);
-        #ifdef HAS_LIBGSLIC
+#ifdef HAS_LIBGSLIC
         _superpixel = spt::GSLIC({
-            .img_size = { width, height },
-            .no_segs = 64,
-            .spixel_size = (int)superpixel_size,
-            .no_iters = 5,
-            .coh_weight = 0.6f,
-            .do_enforce_connectivity = true,
-            .color_space = gSLICr::CIELAB, // gSLICr::XYZ | gSLICr::RGB
-            .seg_method = gSLICr::GIVEN_SIZE // gSLICr::GIVEN_NUM
-        });
-        #else
+                                         .img_size = {width, height},
+                                         .no_segs = 64,
+                                         .spixel_size = (int) superpixel_size,
+                                         .no_iters = 5,
+                                         .coh_weight = 0.6f,
+                                         .do_enforce_connectivity = true,
+                                         .color_space = gSLICr::CIELAB, // gSLICr::XYZ | gSLICr::RGB
+                                         .seg_method = gSLICr::GIVEN_SIZE // gSLICr::GIVEN_NUM
+                                 });
+#else
         _superpixel = spt::OpenCVSLIC(superpixel_size, 30.0f, 3, 10.0f);
-        #endif
+#endif
 
         if (dcnn_enable) {
             dcnn.Summary();
@@ -303,7 +319,7 @@ class SuperpixelAnalyzerWindow2: public IWindow {
             dcnn.SetInputResolution(256, 256);
         }
         this->_is_shown = true;
-        return dynamic_cast<IWindow*>(this);
+        return dynamic_cast<IWindow *>(this);
     }
 
     void ReinitializeRawFrame() {
@@ -316,11 +332,11 @@ class SuperpixelAnalyzerWindow2: public IWindow {
     bool Draw() override {
         if (!this->_is_shown) return false;
         ImGui::Begin(this->_title, &this->_is_shown);
-        ImGui::SliderInt("Image id", &d_image_id, 0, static_cast<int>(glob_dataset.size())-1);
-        if(d_image_id.Update())
+        ImGui::SliderInt("Image id", &d_image_id, 0, static_cast<int>(glob_dataset.size()) - 1);
+        if (d_image_id.Update())
             this->ReinitializeRawFrame();
         ImGui::Text("File name: %s", glob_dataset[d_image_id.val]);
-        ImGui::SliderInt("Chip id", &d_chip_id, 0, chips.nchip-1);
+        ImGui::SliderInt("Chip id", &d_chip_id, 0, chips.nchip - 1);
         frame = frame_raw(chips.GetROI(d_chip_id));
         this->superpixel = _superpixel.Compute(frame);
         superpixel->GetLabels(superpixel_labels);
@@ -331,38 +347,45 @@ class SuperpixelAnalyzerWindow2: public IWindow {
         superpixel_selected = superpixel_labels == superpixel_id;
         switch (sel.mode) {
             case SuperpixelSelection::Mode::None:
-            break;
+                break;
 
             case SuperpixelSelection::Mode::Spotlight:
-            cv_misc::fx::spotlight(frame_rgb, superpixel_selected, 0.5);
-            superpixel->GetContour(superpixel_contour);
-            frame_rgb.setTo(cv::Scalar(200, 5, 240), superpixel_contour);
-            break;
+                cv_misc::fx::spotlight(frame_rgb, superpixel_selected, 0.5);
+                superpixel->GetContour(superpixel_contour);
+                frame_rgb.setTo(cv::Scalar(200, 5, 240), superpixel_contour);
+                break;
 
             case SuperpixelSelection::Mode::Contour:
-            cv::findContours(superpixel_selected, superpixel_sel_contour, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
-            cv::drawContours(frame_rgb, superpixel_sel_contour, 0, cv::Scalar(200, 5, 240), 2);
-            break;
+                cv::findContours(superpixel_selected, superpixel_sel_contour, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
+                cv::drawContours(frame_rgb, superpixel_sel_contour, 0, cv::Scalar(200, 5, 240), 2);
+                break;
         }
-        
+
         imSuperpixels.Load(frame_rgb.data);
         ImGui::Text("(%d, %d) => (%d,)", imSuperpixels.width, imSuperpixels.height, superpixel->GetNumSuperpixels());
         // superpixel_id bound check
-        if(superpixel_id>=superpixel->GetNumSuperpixels()) {
+        if (superpixel_id >= superpixel->GetNumSuperpixels()) {
             // ! BUG
-            std::cerr<<"Resetting superpixel_id because it is out of bound"<<std::endl;
+            std::cerr << "Resetting superpixel_id because it is out of bound" << std::endl;
             superpixel_id = 0;
         }
         ImVec2 pos = ImGui::GetCursorScreenPos();
-        ImGui::Image(imSuperpixels.id(), imSuperpixels.size(), ImVec2(0,0), ImVec2(1,1), ImVec4(1.0f,1.0f,1.0f,1.0f), ImVec4(1.0f,1.0f,1.0f,0.5f));
+        ImGui::Image(imSuperpixels.id(), imSuperpixels.size(), ImVec2(0, 0), ImVec2(1, 1),
+                     ImVec4(1.0f, 1.0f, 1.0f, 1.0f), ImVec4(1.0f, 1.0f, 1.0f, 0.5f));
         if (ImGui::IsItemHovered()) {
             pointer_x = static_cast<int>(io.MousePos.x - pos.x);
             pointer_y = static_cast<int>(io.MousePos.y - pos.y);
             if (use_magnifier) {
                 ImGui::BeginTooltip();
                 float region_sz = 32.0f;
-                float region_x = io.MousePos.x - pos.x - region_sz * 0.5f; if (region_x < 0.0f) region_x = 0.0f; else if (region_x > imSuperpixels.f32width - region_sz) region_x = imSuperpixels.f32width - region_sz;
-                float region_y = io.MousePos.y - pos.y - region_sz * 0.5f; if (region_y < 0.0f) region_y = 0.0f; else if (region_y > imSuperpixels.f32height - region_sz) region_y = imSuperpixels.f32height - region_sz;
+                float region_x = io.MousePos.x - pos.x - region_sz * 0.5f;
+                if (region_x < 0.0f) region_x = 0.0f;
+                else if (region_x > imSuperpixels.f32width - region_sz)
+                    region_x = imSuperpixels.f32width - region_sz;
+                float region_y = io.MousePos.y - pos.y - region_sz * 0.5f;
+                if (region_y < 0.0f) region_y = 0.0f;
+                else if (region_y > imSuperpixels.f32height - region_sz)
+                    region_y = imSuperpixels.f32height - region_sz;
                 float zoom = 4.0f;
                 ImGui::Text("Ptr: (%d,%d) Id: %d", pointer_x, pointer_y, superpixel_id);
                 cv::Scalar sel_mean, sel_std;
@@ -370,16 +393,18 @@ class SuperpixelAnalyzerWindow2: public IWindow {
                 ImGui::Text("Mean: (%.1f,%.1f,%.1f)", sel_mean[0], sel_mean[1], sel_mean[2]);
                 ImGui::Text("Std: (%.1f,%.1f,%.1f)", sel_std[0], sel_std[1], sel_std[2]);
                 ImGui::Image(
-                    imSuperpixels.id(), ImVec2(region_sz * zoom, region_sz * zoom),
-                    imSuperpixels.uv(region_x, region_y), imSuperpixels.uv(region_x + region_sz, region_y + region_sz),
-                    ImVec4(1.0f, 1.0f, 1.0f, 1.0f), ImVec4(1.0f, 1.0f, 1.0f, 0.5f));
+                        imSuperpixels.id(), ImVec2(region_sz * zoom, region_sz * zoom),
+                        imSuperpixels.uv(region_x, region_y),
+                        imSuperpixels.uv(region_x + region_sz, region_y + region_sz),
+                        ImVec4(1.0f, 1.0f, 1.0f, 1.0f), ImVec4(1.0f, 1.0f, 1.0f, 0.5f));
                 ImGui::EndTooltip();
             }
         }
-        #ifndef HAS_LIBGSLIC // with OpenCV SLIC, it is possible to use different superpixel sizes over time
+#ifndef HAS_LIBGSLIC // with OpenCV SLIC, it is possible to use different superpixel sizes over time
         ImGui::SliderFloat("Superpixel Size", &_superpixel.superpixel_size, 15.0f, 80.0f);
-        #endif
-        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+#endif
+        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate,
+                    ImGui::GetIO().Framerate);
         ImGui::Checkbox("Magnifier", &use_magnifier);
         if (ImGui::RadioButton("None", sel.mode == SuperpixelSelection::Mode::None)) {
             sel.mode = SuperpixelSelection::Mode::None;
@@ -395,10 +420,12 @@ class SuperpixelAnalyzerWindow2: public IWindow {
 
         if (ImGui::TreeNode("RGB Histogram")) {
             ImGui::Checkbox("Normalize Superpixel", &normalize_component);
-            cv_misc::fx::RGBHistogram hist(frame, imHistogram.width, imHistogram.height, (sel?0.3f:1.0f), normalize_component);
-            hist.Compute(histogram_rgb, sel?superpixel_selected:cv::noArray());
+            cv_misc::fx::RGBHistogram hist(frame, imHistogram.width, imHistogram.height, (sel ? 0.3f : 1.0f),
+                                           normalize_component);
+            hist.Compute(histogram_rgb, sel ? superpixel_selected : cv::noArray());
             imHistogram.Load(histogram_rgb.data);
-            ImGui::Image(imHistogram.id(), imHistogram.size(), ImVec2(0,0), ImVec2(1,1), ImVec4(1.0f,1.0f,1.0f,1.0f), ImVec4(1.0f,1.0f,1.0f,0.5f));
+            ImGui::Image(imHistogram.id(), imHistogram.size(), ImVec2(0, 0), ImVec2(1, 1),
+                         ImVec4(1.0f, 1.0f, 1.0f, 1.0f), ImVec4(1.0f, 1.0f, 1.0f, 0.5f));
             ImGui::TreePop();
         }
 
@@ -415,15 +442,16 @@ class SuperpixelAnalyzerWindow2: public IWindow {
                     v2 = superpixel_moments.mu20,
                     v3 = superpixel_moments.mu11;
             ImGui::Text("Area: %.1f", v0);
-            ImGui::Text("Centroid: (%4.1f,%4.1f)", superpixel_moments.m10/v0, superpixel_moments.m01/v0);
-            ImGui::Text("Covariance: [%4.1f %4.1f; . %4.1f]", v2/v0, v3/v0, v1/v0);
-            double d = sqrt(v3*v3*4+(v1-v2)*(v1-v2));
-            double e1 = (v1+v2+d)/(2*v0), e2 = (v1+v2-d)/(2*v0);
+            ImGui::Text("Centroid: (%4.1f,%4.1f)", superpixel_moments.m10 / v0, superpixel_moments.m01 / v0);
+            ImGui::Text("Covariance: [%4.1f %4.1f; . %4.1f]", v2 / v0, v3 / v0, v1 / v0);
+            double d = sqrt(v3 * v3 * 4 + (v1 - v2) * (v1 - v2));
+            double e1 = (v1 + v2 + d) / (2 * v0), e2 = (v1 + v2 - d) / (2 * v0);
             ImGui::Text("Eigenvalues: (%4.1f,%4.1f)", e1, e2);
-            ImGui::Text("Eccentricity: %4.1f", sqrt(1.0-e2/e1));
+            ImGui::Text("Eccentricity: %4.1f", sqrt(1.0 - e2 / e1));
             double hu[7];
             cv::HuMoments(superpixel_moments, hu);
-            ImGui::Text("Hu: %4.1f %4.1f %4.1f %4.1f %4.1f %4.1f %4.1f", hu[0], hu[1], hu[2], hu[3], hu[4], hu[5], hu[6]);
+            ImGui::Text("Hu: %4.1f %4.1f %4.1f %4.1f %4.1f %4.1f %4.1f", hu[0], hu[1], hu[2], hu[3], hu[4], hu[5],
+                        hu[6]);
             ImGui::TreePop();
         }
 
@@ -431,7 +459,8 @@ class SuperpixelAnalyzerWindow2: public IWindow {
             dcnn.Compute(frame_dcnn, superpixel_labels);
             superpixel_feature_buffer.resize(dcnn.GetFeatureDim());
             dcnn.GetFeature(superpixel_id, superpixel_feature_buffer.data());
-            ImGui::PlotLines("Feature", superpixel_feature_buffer.data(), dcnn.GetFeatureDim(), 0, "", -1.0f, 1.0f, ImVec2(320, 200));
+            ImGui::PlotLines("Feature", superpixel_feature_buffer.data(), dcnn.GetFeatureDim(), 0, "", -1.0f, 1.0f,
+                             ImVec2(320, 200));
             ImGui::TreePop();
         }
 
@@ -439,18 +468,18 @@ class SuperpixelAnalyzerWindow2: public IWindow {
         return true;
     }
 
-    protected:
-    ImGuiIO& io;
+protected:
+    ImGuiIO &io;
     int width, height, channels;
     os_misc::Glob glob_dataset;
     TexImage imSuperpixels;
     TexImage imHistogram;
-    #ifdef HAS_LIBGSLIC
+#ifdef HAS_LIBGSLIC
     spt::GSLIC _superpixel;
-    #else
+#else
     spt::OpenCVSLIC _superpixel;
-    #endif
-    spt::ISuperpixel* superpixel;
+#endif
+    spt::ISuperpixel *superpixel;
     spt::dnn::VGG16SP dcnn;
 
     bool _is_shown = false;
@@ -475,23 +504,19 @@ class SuperpixelAnalyzerWindow2: public IWindow {
     std::vector<float> superpixel_feature_buffer;
 };
 
-std::vector<CameraInfo> cameras;
-static std::list<std::unique_ptr<IWindow>> windows;
-
 class PipelineSettingsWindow: public IStaticWindow {
-    public:
+public:
     bool Draw() override {
         ImGui::Begin("Pipeline Settings");
-        if(ImGui::TreeNode("Enabled Features")) {
-            #define FEATURE(FEATURE_MACRO) ImGui::Text("-D " #FEATURE_MACRO)
-            #define FEATURE_VER(FEATURE_MACRO) ImGui::Text("-D " #FEATURE_MACRO " %s", VERSTR(FEATURE_MACRO))
-            #include "features.hpp"
+        if (ImGui::TreeNode("Enabled Features")) {
+#define FEATURE(FEATURE_MACRO) ImGui::Text("-D " #FEATURE_MACRO)
+#define FEATURE_VER(FEATURE_MACRO) ImGui::Text("-D " #FEATURE_MACRO " %s", VERSTR(FEATURE_MACRO))
+#include "features.inc"
             ImGui::TreePop();
         }
 
-        static CameraInfo *d_camera_current = &cameras[0];
-        if(ImGui::TreeNode("Video Feed")) {
-            if (cameras.size()>0) {
+        if (ImGui::TreeNode("Video Feed")) {
+            if (cameras.size() > 0) {
                 if (ImGui::BeginCombo("Source", d_camera_current->name.c_str())) {
                     for (auto &camera_info: cameras) {
                         bool is_selected = (d_camera_current == &camera_info);
@@ -502,21 +527,20 @@ class PipelineSettingsWindow: public IStaticWindow {
                     }
                     ImGui::EndCombo();
                 }
-            }
-            else ImGui::Text("No cameras found.");
+            } else ImGui::Text("No cameras found.");
             ImGui::TreePop();
         }
 
-        #ifdef HAS_LIBGSLIC // with gSLIC, it is not efficient to use different superpixel sizes over time
-        if(ImGui::TreeNode("Superpixels")) {
+#ifdef HAS_LIBGSLIC // with gSLIC, it is not efficient to use different superpixel sizes over time
+        if (ImGui::TreeNode("Superpixels")) {
             static float d_superpixel_size = 32.0f;
             ImGui::SliderFloat("Superpixel Size", &d_superpixel_size, 15.0f, 80.0f);
             ImGui::TreePop();
         }
-        #endif
+#endif
         ImGui::Separator();
 
-        if(ImGui::Button("Initialize")) {
+        if (ImGui::Button("Initialize")) {
             if (d_camera_current->Acquire()) {
                 auto w = std::make_unique<SuperpixelAnalyzerWindow>(WIDTH, HEIGHT, d_camera_current);
                 if (w->Show() != nullptr)
@@ -526,18 +550,19 @@ class PipelineSettingsWindow: public IStaticWindow {
         ImGui::End();
         return true;
     }
+
+protected:
+    cv_misc::CameraInfo *d_camera_current = &cameras[0];
 };
 
-std::vector<std::tuple<std::string, std::string>> datasets;
-
 class DatasetWindow: public IStaticWindow {
-    public:
+public:
     bool Draw() override {
         ImGui::Begin("Dataset");
         static size_t d_dataset = 0;
-        if(ImGui::TreeNode("Dataset") && datasets.size()>0) {
+        if (ImGui::TreeNode("Dataset") && datasets.size() > 0) {
             if (ImGui::BeginCombo("Source", std::get<0>(datasets[d_dataset]).c_str())) {
-                for (size_t i = 0; i<datasets.size(); ++i) {
+                for (size_t i = 0; i < datasets.size(); ++i) {
                     bool is_selected = i == d_dataset;
                     if (ImGui::Selectable(std::get<0>(datasets[i]).c_str(), is_selected))
                         d_dataset = i;
@@ -549,41 +574,41 @@ class DatasetWindow: public IStaticWindow {
             ImGui::TreePop();
         }
 
-        #ifdef HAS_LIBGSLIC // with gSLIC, it is not efficient to use different superpixel sizes over time
-        if(ImGui::TreeNode("Superpixels")) { 
+#ifdef HAS_LIBGSLIC // with gSLIC, it is not efficient to use different superpixel sizes over time
+        if (ImGui::TreeNode("Superpixels")) {
             ImGui::SliderFloat("Superpixel Size", &d_superpixel_size, 5.6f, 24.0f);
             ImGui::TreePop();
         }
-        #endif
+#endif
 
-        if(ImGui::TreeNode("DCNN")) {
+        if (ImGui::TreeNode("DCNN")) {
             ImGui::Checkbox("Enable", &d_dcnn_enable);
-            if(d_dcnn_enable) d_chip_size = 256;
+            if (d_dcnn_enable) d_chip_size = 256;
             ImGui::TreePop();
         }
 
-        if(!d_dcnn_enable && ImGui::TreeNode("Chipping")) {
+        if (!d_dcnn_enable && ImGui::TreeNode("Chipping")) {
             ImGui::SliderInt("sqrt(Chip Size)", &d_chip_size, 100, 1000);
             ImGui::SliderFloat("Overlap percentage", &d_chip_overlap, 0, 0.99);
             ImGui::TreePop();
         }
 
-        if(ImGui::TreeNode("Labels")) {
+        if (ImGui::TreeNode("Labels")) {
             ImGui::Checkbox("Enable", &d_label_enable);
             ImGui::TreePop();
         }
 
         ImGui::Separator();
 
-        if(ImGui::Button("Initialize")) {
+        if (ImGui::Button("Initialize")) {
             const auto frame_width = d_chip_size;
             const auto frame_height = d_chip_size;
             auto w = std::make_unique<SuperpixelAnalyzerWindow2>(
-                frame_width, frame_height,
-                std::get<1>(datasets[d_dataset]),
-                d_superpixel_size,
-                d_chip_overlap,
-                d_dcnn_enable);
+                    frame_width, frame_height,
+                    std::get<1>(datasets[d_dataset]),
+                    d_superpixel_size,
+                    d_chip_overlap,
+                    d_dcnn_enable);
             if (w->Show() != nullptr)
                 windows.push_back(std::move(w));
         }
@@ -861,7 +886,7 @@ int main(int, char**) {
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     cameras = cv_misc::camera_enumerate2();
     datasets.emplace_back("xView", (pth_xView / "train_images/*.tif").string());
-//    windows.push_back(std::make_unique<PipelineSettingsWindow>());
+    windows.push_back(std::make_unique<PipelineSettingsWindow>());
     windows.push_back(std::make_unique<DatasetWindow>());
 
     while (app.EventLoop()){

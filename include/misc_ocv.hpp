@@ -6,24 +6,24 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 
-/// OpenCV Video I/O
-struct Camera {
-    int capture_id;
-    cv::VideoCapture capture;
-    unsigned int width, height;
-    Camera(unsigned int idx, unsigned int width, unsigned int height);
-    int open();
-};
-
-struct CameraInfo {
-    std::string name;
-    int id;
-    bool isOpened;
-    bool Acquire();
-    void Release();
-};
-
 namespace cv_misc {
+    /// OpenCV Video I/O
+    struct Camera {
+        int capture_id;
+        cv::VideoCapture capture;
+        unsigned int width, height;
+        Camera(unsigned int idx, unsigned int width, unsigned int height);
+        int open();
+    };
+
+    struct CameraInfo {
+        std::string name;
+        int id;
+        bool isOpened;
+        bool Acquire();
+        void Release();
+    };
+    
     std::vector<int> camera_enumerate();
     std::vector<CameraInfo> camera_enumerate2();
     std::string type2str(int type);
