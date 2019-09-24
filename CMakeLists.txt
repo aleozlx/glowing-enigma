@@ -113,6 +113,7 @@ add_executable(superpixel_analyzer
     ${CMAKE_CURRENT_SOURCE_DIR}/src/superpixel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/dcnn.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/misc_ocv.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/misc_os.cpp
     ${root}/examples/imgui_impl_glfw.cpp ${root}/examples/imgui_impl_opengl3.cpp)
 target_compile_definitions(superpixel_analyzer PUBLIC IMGUI_IMPL_OPENGL_LOADER_GLEW)
 if(CUDA_FOUND)

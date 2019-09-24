@@ -1,12 +1,22 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <tuple>
 
 #include "app.hpp"
 #include "teximage.hpp"
 #include "misc_ocv.hpp"
+#include "misc_os.hpp"
 #include "superpixel.hpp"
 #include "dcnn.hpp"
+
+#if __has_include(<filesystem>)
+#include <filesystem>
+namespace fs = std::filesystem;
+#else
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
+#endif
 
 const unsigned int WIDTH = 432;
 const unsigned int HEIGHT = 240;
@@ -212,31 +222,59 @@ SIZE gdiv(SIZE a, SIZE b) {
 }
 
 class SuperpixelAnalyzerWindow2: public IWindow {
+    protected:
+        template<typename T>
+        struct LazyLoader {
+            T val, _new_val;
+
+            explicit LazyLoader(T init_val): val(init_val) {
+
+            }
+
+            /// Sync value to a temp var for data binding
+            T* operator&() { // NOLINT I know exactly what I am doing!
+                _new_val = val;
+                return &_new_val;
+            }
+
+            /// Sync value back and detect changes
+            bool Update() {
+                return Update(_new_val);
+            }
+
+            /// Update value and detect changes
+            bool Update(T new_val) {
+                if(new_val == val) return false;
+                else {
+                    val = new_val;
+                    return true;
+                }
+            }
+        };
     public:
-    SuperpixelAnalyzerWindow2(int frame_width, int frame_height, std::string fname, float superpixel_size, bool dcnn_enable=true):
+    SuperpixelAnalyzerWindow2(int frame_width, int frame_height, std::string glob_pattern, float superpixel_size, float chip_overlap, bool dcnn_enable=true):
         io(ImGui::GetIO()),
         width(frame_width),
         height(frame_height),
+        glob_dataset(glob_pattern.c_str()),
+        d_image_id(0),
         superpixel_size(superpixel_size),
+        chip_overlap(chip_overlap),
         dcnn_enable(dcnn_enable)
     {
-        this->fname = fname;
         std::string id = "xView";
         std::snprintf(_title, IM_ARRAYSIZE(_title), "Superpixel Analyzer [%s]", id.c_str());
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
     }
 
     IWindow* Show() override {
-        frame_raw = cv::imread(fname, cv::IMREAD_COLOR);
-        cv::Size real_size = frame_raw.size();
+        if(glob_dataset.size()<=0)
+            return nullptr;
 
-        chips = spt::dnn::Chipping(real_size, cv::Size(width, height));
+        //"/tank/datasets/research/xView/train_images/1036.tif";
+        this->ReinitializeRawFrame();
         frame = frame_raw(chips.GetROI(0));
 
-        // double fit_width = ((double)width) / real_size.width;
-        // double fit_height = ((double)height) / real_size.height;
-        // this->resize_factor = std::min(fit_width, fit_height);
-        // cv::resize(frame, frame, cv::Size(), resize_factor, resize_factor, cv::INTER_AREA);
         cv::Size frame_size = frame.size();
         width = frame_size.width;
         height = frame_size.height;
@@ -268,9 +306,20 @@ class SuperpixelAnalyzerWindow2: public IWindow {
         return dynamic_cast<IWindow*>(this);
     }
 
+    void ReinitializeRawFrame() {
+        frame_raw = cv::imread(glob_dataset[d_image_id.val], cv::IMREAD_COLOR);
+        cv::Size real_size = frame_raw.size();
+        chips = spt::dnn::Chipping(real_size, cv::Size(width, height), chip_overlap);
+        d_chip_id = 0;
+    }
+
     bool Draw() override {
         if (!this->_is_shown) return false;
         ImGui::Begin(this->_title, &this->_is_shown);
+        ImGui::SliderInt("Image id", &d_image_id, 0, static_cast<int>(glob_dataset.size())-1);
+        if(d_image_id.Update())
+            this->ReinitializeRawFrame();
+        ImGui::Text("File name: %s", glob_dataset[d_image_id.val]);
         ImGui::SliderInt("Chip id", &d_chip_id, 0, chips.nchip-1);
         frame = frame_raw(chips.GetROI(d_chip_id));
         this->superpixel = _superpixel.Compute(frame);
@@ -393,8 +442,7 @@ class SuperpixelAnalyzerWindow2: public IWindow {
     protected:
     ImGuiIO& io;
     int width, height, channels;
-    std::string fname;
-    double resize_factor;
+    os_misc::Glob glob_dataset;
     TexImage imSuperpixels;
     TexImage imHistogram;
     #ifdef HAS_LIBGSLIC
@@ -408,7 +456,9 @@ class SuperpixelAnalyzerWindow2: public IWindow {
     bool _is_shown = false;
     char _title[64];
     int pointer_x = 0, pointer_y = 0;
-    float superpixel_size = 0;
+    LazyLoader<int> d_image_id;
+    float superpixel_size;
+    float chip_overlap;
     unsigned int superpixel_id = 0;
     SuperpixelSelection sel = {SuperpixelSelection::Mode::Contour};
     bool use_magnifier = false;
@@ -426,7 +476,7 @@ class SuperpixelAnalyzerWindow2: public IWindow {
 };
 
 std::vector<CameraInfo> cameras;
-std::list<std::unique_ptr<IWindow>> windows;
+static std::list<std::unique_ptr<IWindow>> windows;
 
 class PipelineSettingsWindow: public IStaticWindow {
     public:
@@ -478,18 +528,18 @@ class PipelineSettingsWindow: public IStaticWindow {
     }
 };
 
-std::vector<std::string> datasets;
+std::vector<std::tuple<std::string, std::string>> datasets;
 
 class DatasetWindow: public IStaticWindow {
     public:
     bool Draw() override {
         ImGui::Begin("Dataset");
-        static int d_dataset = 0;
+        static size_t d_dataset = 0;
         if(ImGui::TreeNode("Dataset") && datasets.size()>0) {
-            if (ImGui::BeginCombo("Source", datasets[d_dataset].c_str())) {
+            if (ImGui::BeginCombo("Source", std::get<0>(datasets[d_dataset]).c_str())) {
                 for (size_t i = 0; i<datasets.size(); ++i) {
                     bool is_selected = i == d_dataset;
-                    if (ImGui::Selectable(datasets[i].c_str(), is_selected))
+                    if (ImGui::Selectable(std::get<0>(datasets[i]).c_str(), is_selected))
                         d_dataset = i;
                     if (is_selected)
                         ImGui::SetItemDefaultFocus();
@@ -499,7 +549,6 @@ class DatasetWindow: public IStaticWindow {
             ImGui::TreePop();
         }
 
-        static float d_superpixel_size = 8.0f;
         #ifdef HAS_LIBGSLIC // with gSLIC, it is not efficient to use different superpixel sizes over time
         if(ImGui::TreeNode("Superpixels")) { 
             ImGui::SliderFloat("Superpixel Size", &d_superpixel_size, 5.6f, 24.0f);
@@ -507,37 +556,33 @@ class DatasetWindow: public IStaticWindow {
         }
         #endif
 
-        static bool d_dcnn_enable = true;
         if(ImGui::TreeNode("DCNN")) {
             ImGui::Checkbox("Enable", &d_dcnn_enable);
+            if(d_dcnn_enable) d_chip_size = 256;
             ImGui::TreePop();
         }
 
-        static int chip_size = 256;
-        if(!d_dcnn_enable && ImGui::TreeNode("Chip Size")) {
-            if (ImGui::RadioButton("256x256", chip_size == 256)) {
-                chip_size = 256;
-            }
-            ImGui::SameLine();
-            if (ImGui::RadioButton("400x400", chip_size == 400)) {
-                chip_size = 400;
-            }
-            ImGui::SameLine();
-            if (ImGui::RadioButton("800x800", chip_size == 800)) {
-                chip_size = 800;
-            }
+        if(!d_dcnn_enable && ImGui::TreeNode("Chipping")) {
+            ImGui::SliderInt("sqrt(Chip Size)", &d_chip_size, 100, 1000);
+            ImGui::SliderFloat("Overlap percentage", &d_chip_overlap, 0, 0.99);
+            ImGui::TreePop();
+        }
+
+        if(ImGui::TreeNode("Labels")) {
+            ImGui::Checkbox("Enable", &d_label_enable);
             ImGui::TreePop();
         }
 
         ImGui::Separator();
 
         if(ImGui::Button("Initialize")) {
-            const auto frame_width = chip_size;
-            const auto frame_height = chip_size;
+            const auto frame_width = d_chip_size;
+            const auto frame_height = d_chip_size;
             auto w = std::make_unique<SuperpixelAnalyzerWindow2>(
-                 frame_width, frame_height,
-                "/tank/datasets/research/xView/train_images/1036.tif",
+                frame_width, frame_height,
+                std::get<1>(datasets[d_dataset]),
                 d_superpixel_size,
+                d_chip_overlap,
                 d_dcnn_enable);
             if (w->Show() != nullptr)
                 windows.push_back(std::move(w));
@@ -545,6 +590,13 @@ class DatasetWindow: public IStaticWindow {
         ImGui::End();
         return true;
     }
+
+protected:
+    float d_superpixel_size = 8.0f;
+    bool d_dcnn_enable = false;
+    int d_chip_size = 500;
+    float d_chip_overlap = 0.3;
+    bool d_label_enable = false;
 };
 
 #if 0
@@ -801,12 +853,14 @@ class CustomRenderTestWindow: public TestWindow {
 };
 #endif
 
+const fs::path pth_xView("/tank/datasets/research/xView");
+
 int main(int, char**) {
     App app = App::Initialize();
     if (!app.ok) return 1;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     cameras = cv_misc::camera_enumerate2();
-    datasets.push_back("xView");
+    datasets.emplace_back("xView", (pth_xView / "train_images/*.tif").string());
 //    windows.push_back(std::make_unique<PipelineSettingsWindow>());
     windows.push_back(std::make_unique<DatasetWindow>());
 
@@ -818,7 +872,7 @@ int main(int, char**) {
         app.Render(clear_color);
     }
 
-    // Ensure dtors are orderly invoked: heavy RAII usage
+    // Ensure dtors are invoked: RAII style CUDA resources
     windows.clear();
     return 0;
 }
