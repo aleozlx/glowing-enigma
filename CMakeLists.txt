@@ -177,6 +177,37 @@ target_link_libraries(superpixel_process ${SPFREQ2_LIBRARIES} fpconv
     opencv_video
 )
 
+# Superpixel Figure Generator
+add_executable(superpixel_figures
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/figures.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/superpixel.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/misc_ocv.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/misc_os.cpp)
+if(CUDA_FOUND)
+    target_compile_definitions(superpixel_figures PUBLIC HAS_LIBGSLIC)
+    target_link_libraries(superpixel_figures gSLICr)
+endif()
+if(LIBPQXX_FOUND)
+    target_include_directories(superpixel_figures PUBLIC ${LIBPQXX_INCLUDE_DIR})
+    # target_link_directories(superpixel_process PUBLIC ${LIBPQXX_LIBRARY_DIRS})
+    target_link_libraries(superpixel_figures pqxx)
+endif()
+if(OPENMP_FOUND)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+    target_link_libraries(superpixel_figures ${OpenMP_CXX_LIBRARIES})
+endif()
+target_link_libraries(superpixel_figures std::filesystem)
+target_link_libraries(superpixel_figures ${SPFREQ2_LIBRARIES} fpconv
+        opencv_core
+        opencv_dnn
+        opencv_imgproc
+        opencv_ximgproc
+        opencv_imgcodecs
+        opencv_videoio
+        opencv_video
+        )
+
+
 if(FEATURE_GUI)
 # gSLIC Demo
 add_executable(gslic_demo
