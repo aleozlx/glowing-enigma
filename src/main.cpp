@@ -363,7 +363,7 @@ order by st_area(bbox.xview_bounds_imcoords);");
         frame_raw = cv::imread(glob_dataset[d_image_id.val], cv::IMREAD_COLOR);
         channels = 3;
         cv::Size real_size = frame_raw.size();
-        chips = spt::dnn::Chipping(real_size, cv::Size(width, height), analyzer_config.chip_overlap);
+        chips = cv_misc::Chipping(real_size, cv::Size(width, height), analyzer_config.chip_overlap);
         d_chip_id = 0;
 //        if (conn) {
 //            pqxx::work w_frame(*conn);
@@ -603,7 +603,7 @@ protected:
     bool use_magnifier = false;
     bool normalize_component = true;
     int d_chip_id = 0;
-    spt::dnn::Chipping chips;
+    cv_misc::Chipping chips;
 
     cv::Mat frame_raw, frame, frame_rgb, frame_dcnn;
     cv::Mat superpixel_labels;

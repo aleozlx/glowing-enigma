@@ -6,6 +6,7 @@
 #include <pqxx/pqxx>
 #include "argparse.hpp"
 #include "misc_os.hpp"
+#include "misc_ocv.hpp"
 #include "superpixel.hpp"
 
 #if __has_include(<filesystem>)
@@ -43,7 +44,7 @@ void process_tif(const fs::path &dataset, const std::string &fname, const float 
     cv::Mat frame_raw = cv::imread(fname, cv::IMREAD_COLOR);
     cv::Size real_size = frame_raw.size();
     const int width = 256, height = 256, size_class = sp_size;
-    spt::dnn::Chipping chips(real_size, cv::Size(width, height), chip_overlap);
+    cv_misc::Chipping chips(real_size, cv::Size(width, height), chip_overlap);
 
     spt::GSLIC _superpixel({
                                    .img_size = { width, height },
@@ -63,6 +64,7 @@ int main(int argc, char* argv[]) {
     ///////////////////////////
     ArgumentParser parser("Superpixel Feature Inference Pipeline");
     parser.add_argument("-d", "Dataset location", true);
+    parser.add_argument("-o", "Output location", true);
     parser.add_argument("-c", "Chipping Overlap (=0.5)");
     parser.add_argument("-s", "Superpixel Size (=32)");
     try {

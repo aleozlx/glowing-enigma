@@ -45,22 +45,6 @@ namespace spt::dnn {
         virtual void GetFeature(int superpixel_id, float *output_array) const = 0;
     };
 
-    struct Chipping {
-        int width, height;
-        int chip_width, chip_height;
-        int nx, ny, nchip;
-        int chip_stride_x, chip_stride_y;
-
-        Chipping() {}
-
-        /// Calculate maximum number of chips, with size `c`, that can be fit into length `L` with overlapping proportion `e`.
-        static int NChip(int c, int L, float e = 0.0);
-
-        Chipping(cv::Size input_size, cv::Size chip_size, float overlap = 0.0);
-
-        cv::Rect GetROI(int chip_id);
-    };
-
     class VGG16 : public TensorFlowInference, public IComputeFrame {
     public:
         VGG16();
