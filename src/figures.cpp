@@ -39,6 +39,61 @@ const std::vector<std::string> images = {
         "train_images/1438.tif"  // Yacht,75
 };
 
-int main(int argc, char* argv[]) {
+void process_tif(const fs::path &dataset, const std::string &fname, const float chip_overlap, const int sp_size, bool verbose = false) {
+    cv::Mat frame_raw = cv::imread(fname, cv::IMREAD_COLOR);
+    cv::Size real_size = frame_raw.size();
+    const int width = 256, height = 256, size_class = sp_size;
+    spt::dnn::Chipping chips(real_size, cv::Size(width, height), chip_overlap);
 
+    spt::GSLIC _superpixel({
+                                   .img_size = { width, height },
+                                   .no_segs = 64,
+                                   .spixel_size = size_class,
+                                   .no_iters = 5,
+                                   .coh_weight = 0.6f,
+                                   .do_enforce_connectivity = true,
+                                   .color_space = gSLICr::CIELAB,
+                                   .seg_method = gSLICr::GIVEN_SIZE
+                           });
+}
+
+int main(int argc, char* argv[]) {
+    ///////////////////////////
+    // Argument Parser
+    ///////////////////////////
+    ArgumentParser parser("Superpixel Feature Inference Pipeline");
+    parser.add_argument("-d", "Dataset location", true);
+    parser.add_argument("-c", "Chipping Overlap (=0.5)");
+    parser.add_argument("-s", "Superpixel Size (=32)");
+    try {
+        parser.parse(argc, argv);
+    } catch (const ArgumentParser::ArgumentNotFound& ex) {
+        std::cout << ex.what() << std::endl;
+        return 1;
+    }
+    if (parser.is_help()) return 0;
+
+    ///////////////////////////
+    // Dataset
+    ///////////////////////////
+    const fs::path dataset = fs::path(parser.get<std::string>("d"));
+
+    ///////////////////////////
+    // Chipping
+    ///////////////////////////
+    const float chip_overlap = parser.exists("c") ? parser.get<float>("c") : 0.5;
+
+    ///////////////////////////
+    // Superpixel
+    ///////////////////////////
+    const int sp_size = parser.exists("s") ? parser.get<int>("s") : 32;
+
+    ///////////////////////////
+    // Process input images
+    ///////////////////////////
+    for (size_t i = 0; i < images.size(); ++i) {
+        const std::string fname(images[i]);
+        std::cout << "Processing " << fname << std::endl;
+        process_tif(dataset, fname, chip_overlap, sp_size);
+    }
 }

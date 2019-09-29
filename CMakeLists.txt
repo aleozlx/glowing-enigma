@@ -176,7 +176,6 @@ target_link_libraries(superpixel_process ${SPFREQ2_LIBRARIES} fpconv
 add_executable(superpixel_figures
         ${CMAKE_CURRENT_SOURCE_DIR}/src/figures.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/superpixel.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/dcnn.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/misc_ocv.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/misc_os.cpp)
 if(CUDA_FOUND)
