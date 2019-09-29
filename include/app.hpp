@@ -31,7 +31,7 @@ class App final {
 
     static App Initialize();
     bool EventLoop();
-    void Render(ImVec4 &clear_color);
+    void Render(const ImVec4 &clear_color);
 
     private:
     void Shutdown();
@@ -123,29 +123,5 @@ struct Binding {
 };
 
 GLuint LoadShaders(const char *fname_vert, const char *fname_frag);
-
-struct SuperpixelSelection {
-    enum Mode {
-        None,
-        Spotlight,
-        Contour
-    } mode;
-
-    operator bool() const {
-        return mode != None;
-    }
-
-    bool Export() const {
-        return mode != None;
-    }
-
-    void Import(bool dst) {
-        if (dst) {
-            if(mode == None)
-                mode = Spotlight;
-        }
-        else mode = None;
-    }
-};
 
 #endif

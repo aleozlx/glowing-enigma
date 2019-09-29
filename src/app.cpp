@@ -21,7 +21,7 @@ bool App::EventLoop() {
 }
 
 /// ImGui App boiler plates
-void App::Render(ImVec4 &clear_color) {
+void App::Render(const ImVec4 &clear_color) {
     ImGui::Render();
     int display_w, display_h;
     glfwMakeContextCurrent(window);

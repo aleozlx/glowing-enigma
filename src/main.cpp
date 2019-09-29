@@ -2,7 +2,7 @@
 #include <string>
 #include <vector>
 #include <tuple>
-
+#include <pqxx/pqxx>
 #include "app.hpp"
 #include "teximage.hpp"
 #include "misc_ocv.hpp"
@@ -20,14 +20,31 @@ namespace fs = std::experimental::filesystem;
 
 const unsigned int WIDTH = 432;
 const unsigned int HEIGHT = 240;
-
+const fs::path pth_xView("/tank/datasets/research/xView");
 static std::vector<std::tuple<std::string, std::string>> datasets;
 static std::vector<cv_misc::CameraInfo> cameras;
 static std::list<std::unique_ptr<IWindow>> windows;
 
-class SuperpixelAnalyzerWindow: public IWindow {
+struct SuperpixelSelection {
+    cv::Mat superpixel_contour, superpixel_selected;
+    std::vector<std::vector<cv::Point>> superpixel_sel_contour;
+
+    enum Mode {
+        None, Spotlight, Contour
+    } mode;
+
+    SuperpixelSelection() : mode(Contour) {
+
+    }
+
+    explicit operator bool() const {
+        return mode != None;
+    }
+};
+
+class SuperpixelAnalyzerLiveWindow: public IWindow {
 public:
-    SuperpixelAnalyzerWindow(int frame_width, int frame_height, cv_misc::CameraInfo *_camera_info) :
+    SuperpixelAnalyzerLiveWindow(int frame_width, int frame_height, cv_misc::CameraInfo *_camera_info) :
             io(ImGui::GetIO()),
             width(frame_width),
             height(frame_height),
@@ -38,7 +55,7 @@ public:
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
     }
 
-    ~SuperpixelAnalyzerWindow() {
+    ~SuperpixelAnalyzerLiveWindow() {
         _camera_info->Release();
     }
 
@@ -86,20 +103,20 @@ public:
         spt::ISuperpixel *superpixel = _superpixel.Compute(frame);
         superpixel->GetLabels(superpixel_labels);
         superpixel_id = superpixel_labels.at<unsigned int>(pointer_y, pointer_x);
-        superpixel_selected = superpixel_labels == superpixel_id;
+        sel.superpixel_selected = superpixel_labels == superpixel_id;
         switch (sel.mode) {
             case SuperpixelSelection::Mode::None:
                 break;
 
             case SuperpixelSelection::Mode::Spotlight:
-                cv_misc::fx::spotlight(frame_rgb, superpixel_selected, 0.5);
-                superpixel->GetContour(superpixel_contour);
-                frame_rgb.setTo(cv::Scalar(200, 5, 240), superpixel_contour);
+                cv_misc::fx::spotlight(frame_rgb, sel.superpixel_selected, 0.5);
+                superpixel->GetContour(sel.superpixel_contour);
+                frame_rgb.setTo(cv::Scalar(200, 5, 240), sel.superpixel_contour);
                 break;
 
             case SuperpixelSelection::Mode::Contour:
-                cv::findContours(superpixel_selected, superpixel_sel_contour, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
-                cv::drawContours(frame_rgb, superpixel_sel_contour, 0, cv::Scalar(200, 5, 240), 2);
+                cv::findContours(sel.superpixel_selected, sel.superpixel_sel_contour, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
+                cv::drawContours(frame_rgb, sel.superpixel_sel_contour, 0, cv::Scalar(200, 5, 240), 2);
                 break;
         }
 
@@ -125,7 +142,7 @@ public:
                 float zoom = 4.0f;
                 ImGui::Text("Ptr: (%d,%d) Id: %d", pointer_x, pointer_y, superpixel_id);
                 cv::Scalar sel_mean, sel_std;
-                cv::meanStdDev(frame_rgb, sel_mean, sel_std, superpixel_selected);
+                cv::meanStdDev(frame_rgb, sel_mean, sel_std, sel.superpixel_selected);
                 ImGui::Text("Mean: (%.1f,%.1f,%.1f)", sel_mean[0], sel_mean[1], sel_mean[2]);
                 ImGui::Text("Std: (%.1f,%.1f,%.1f)", sel_std[0], sel_std[1], sel_std[2]);
                 ImGui::Image(
@@ -158,7 +175,7 @@ public:
             ImGui::Checkbox("Normalize Superpixel", &normalize_component);
             cv_misc::fx::RGBHistogram hist(frame, imHistogram.width, imHistogram.height, (sel ? 0.3f : 1.0f),
                                            normalize_component);
-            hist.Compute(histogram_rgb, sel ? superpixel_selected : cv::noArray());
+            hist.Compute(histogram_rgb, sel ? sel.superpixel_selected : cv::noArray());
             imHistogram.Load(histogram_rgb.data);
             ImGui::Image(imHistogram.id(), imHistogram.size(), ImVec2(0, 0), ImVec2(1, 1),
                          ImVec4(1.0f, 1.0f, 1.0f, 1.0f), ImVec4(1.0f, 1.0f, 1.0f, 0.5f));
@@ -166,7 +183,7 @@ public:
         }
 
         if (sel.mode == SuperpixelSelection::Mode::Contour && ImGui::TreeNode("Moments")) {
-            superpixel_moments = cv::moments(superpixel_sel_contour[0], true);
+            superpixel_moments = cv::moments(sel.superpixel_sel_contour[0], true);
             // spatial moments
             //   m00, m10, m01, m20, m11, m02, m30, m21, m12, m03;
             // central moments
@@ -219,13 +236,14 @@ protected:
     char _title[64];
     int pointer_x = 0, pointer_y = 0;
     unsigned int superpixel_id = 0;
-    SuperpixelSelection sel = {SuperpixelSelection::Mode::Contour};
+    SuperpixelSelection sel;
     bool use_magnifier = false;
     bool normalize_component = true;
 
     cv::Mat frame, frame_rgb, frame_dcnn;
-    cv::Mat superpixel_contour, superpixel_labels, superpixel_selected;
-    std::vector<std::vector<cv::Point>> superpixel_sel_contour;
+    cv::Mat superpixel_labels;
+//    cv::Mat superpixel_contour, superpixel_labels, superpixel_selected;
+//    std::vector<std::vector<cv::Point>> superpixel_sel_contour;
     cv::Moments superpixel_moments;
     cv::Mat histogram_rgb;
 
@@ -236,7 +254,17 @@ SIZE gdiv(SIZE a, SIZE b) {
     return (a + b - 1) / b;
 }
 
-class SuperpixelAnalyzerWindow2: public IWindow {
+struct DatasetAnalyserConfig {
+    float superpixel_size = 8.0f;
+    bool dcnn_enable = false;
+    int chip_size = 500;
+    float chip_overlap = 0.3;
+    bool label_enable = false;
+    char pqxx_conn[512] = "dbname=xview user=postgres";
+    fs::path dataset = pth_xView; // TODO fix hard-coded value
+};
+
+class SuperpixelAnalyzerWindow: public IWindow {
 protected:
     template<typename T>
     struct LazyLoader {
@@ -268,33 +296,41 @@ protected:
     };
 
 public:
-    SuperpixelAnalyzerWindow2(int frame_width, int frame_height, std::string glob_pattern, float superpixel_size,
-                              float chip_overlap, bool dcnn_enable = true) :
-            io(ImGui::GetIO()),
-            width(frame_width),
-            height(frame_height),
-            glob_dataset(glob_pattern.c_str()),
-            d_image_id(0),
-            superpixel_size(superpixel_size),
-            chip_overlap(chip_overlap),
-            dcnn_enable(dcnn_enable) {
-        std::string id = "xView";
+    SuperpixelAnalyzerWindow(std::string id, int frame_width, int frame_height, std::string glob_pattern, const DatasetAnalyserConfig &config) :
+            io(ImGui::GetIO()), width(frame_width), height(frame_height), glob_dataset(glob_pattern.c_str()), analyzer_config(config), d_image_id(0)
+    {
         std::snprintf(_title, IM_ARRAYSIZE(_title), "Superpixel Analyzer [%s]", id.c_str());
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
+    }
+
+    virtual ~SuperpixelAnalyzerWindow() override {
+        if (this->conn) delete conn;
     }
 
     IWindow *Show() override {
         if (glob_dataset.size() <= 0)
             return nullptr;
 
+        if (analyzer_config.label_enable) {
+            try {
+                conn = new pqxx::connection(analyzer_config.pqxx_conn);
+                conn->prepare("sql_find_frame_id", "select id from frame where image = $1");
+                conn->prepare("sql_match_bbox2", // (image, cx, cy)
+                              "select image, class_label.label_name, bbox.xview_type_id, bbox.xview_bounds_imcoords \
+from frame join bbox on frame.id = bbox.frame_id join class_label on bbox.xview_type_id = class_label.id \
+where frame.image = $1 and st_point($2, $3) && bbox.xview_bounds_imcoords \
+order by st_area(bbox.xview_bounds_imcoords);");
+            }
+            catch (const std::exception &e) {
+                conn = nullptr;
+                std::cerr<<"pqxx error: "<<e.what()<<std::endl;
+            }
+        }
+
         //"/tank/datasets/research/xView/train_images/1036.tif";
         this->ReinitializeRawFrame();
         frame = frame_raw(chips.GetROI(0));
 
-        cv::Size frame_size = frame.size();
-        width = frame_size.width;
-        height = frame_size.height;
-        channels = 3;
         std::cout << "Superpixel processing size " << width << "x" << height << std::endl;
         imSuperpixels = TexImage(width, height, channels);
         imHistogram = TexImage(width - 20, height, channels);
@@ -302,7 +338,7 @@ public:
         _superpixel = spt::GSLIC({
                                          .img_size = {width, height},
                                          .no_segs = 64,
-                                         .spixel_size = (int) superpixel_size,
+                                         .spixel_size = (int) analyzer_config.superpixel_size,
                                          .no_iters = 5,
                                          .coh_weight = 0.6f,
                                          .do_enforce_connectivity = true,
@@ -313,20 +349,46 @@ public:
         _superpixel = spt::OpenCVSLIC(superpixel_size, 30.0f, 3, 10.0f);
 #endif
 
-        if (dcnn_enable) {
+        if (analyzer_config.dcnn_enable) {
             dcnn.Summary();
             dcnn.NewSession();
             dcnn.SetInputResolution(256, 256);
         }
+
         this->_is_shown = true;
         return dynamic_cast<IWindow *>(this);
     }
 
     void ReinitializeRawFrame() {
         frame_raw = cv::imread(glob_dataset[d_image_id.val], cv::IMREAD_COLOR);
+        channels = 3;
         cv::Size real_size = frame_raw.size();
-        chips = spt::dnn::Chipping(real_size, cv::Size(width, height), chip_overlap);
+        chips = spt::dnn::Chipping(real_size, cv::Size(width, height), analyzer_config.chip_overlap);
         d_chip_id = 0;
+//        if (conn) {
+//            pqxx::work w_frame(*conn);
+//            std::string fname(glob_dataset[d_image_id.val]);
+//            fs::path dataset(analyzer_config.dataset);
+//#if __has_include(<filesystem>)
+//            std::string image = fs::path(fname).lexically_relative(dataset).string();
+//#else
+//            // cuz path lib in C++ is obnoxious af.
+//            std::string image = fname;
+//            {
+//                std::string _dataset = dataset.string() + "/";
+//                if(fname.find(_dataset) == 0)
+//                    image.erase(0, _dataset.length());
+//            }
+//#endif
+//            std::cerr<<"Looking up frame_id for "<<image<<std::endl;
+//            pqxx::result r = w_frame.exec_prepared("sql_find_frame_id", image);
+//            w_frame.commit();
+//            if(r.empty()) {
+//                frame_id = -1;
+//                std::cerr<<"frame_id not found."<<std::endl;
+//            }
+//            else frame_id = r[0][0].as<int>();
+//        }
     }
 
     bool Draw() override {
@@ -344,20 +406,20 @@ public:
         frame_dcnn = frame_rgb.clone();
 
         superpixel_id = superpixel_labels.at<unsigned int>(pointer_y, pointer_x);
-        superpixel_selected = superpixel_labels == superpixel_id;
+        sel.superpixel_selected = superpixel_labels == superpixel_id;
         switch (sel.mode) {
             case SuperpixelSelection::Mode::None:
                 break;
 
             case SuperpixelSelection::Mode::Spotlight:
-                cv_misc::fx::spotlight(frame_rgb, superpixel_selected, 0.5);
-                superpixel->GetContour(superpixel_contour);
-                frame_rgb.setTo(cv::Scalar(200, 5, 240), superpixel_contour);
+                cv_misc::fx::spotlight(frame_rgb, sel.superpixel_selected, 0.5);
+                superpixel->GetContour(sel.superpixel_contour);
+                frame_rgb.setTo(cv::Scalar(200, 5, 240), sel.superpixel_contour);
                 break;
 
             case SuperpixelSelection::Mode::Contour:
-                cv::findContours(superpixel_selected, superpixel_sel_contour, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
-                cv::drawContours(frame_rgb, superpixel_sel_contour, 0, cv::Scalar(200, 5, 240), 2);
+                cv::findContours(sel.superpixel_selected, sel.superpixel_sel_contour, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
+                cv::drawContours(frame_rgb, sel.superpixel_sel_contour, 0, cv::Scalar(200, 5, 240), 2);
                 break;
         }
 
@@ -389,7 +451,7 @@ public:
                 float zoom = 4.0f;
                 ImGui::Text("Ptr: (%d,%d) Id: %d", pointer_x, pointer_y, superpixel_id);
                 cv::Scalar sel_mean, sel_std;
-                cv::meanStdDev(frame_rgb, sel_mean, sel_std, superpixel_selected);
+                cv::meanStdDev(frame_rgb, sel_mean, sel_std, sel.superpixel_selected);
                 ImGui::Text("Mean: (%.1f,%.1f,%.1f)", sel_mean[0], sel_mean[1], sel_mean[2]);
                 ImGui::Text("Std: (%.1f,%.1f,%.1f)", sel_std[0], sel_std[1], sel_std[2]);
                 ImGui::Image(
@@ -422,7 +484,7 @@ public:
             ImGui::Checkbox("Normalize Superpixel", &normalize_component);
             cv_misc::fx::RGBHistogram hist(frame, imHistogram.width, imHistogram.height, (sel ? 0.3f : 1.0f),
                                            normalize_component);
-            hist.Compute(histogram_rgb, sel ? superpixel_selected : cv::noArray());
+            hist.Compute(histogram_rgb, sel ? sel.superpixel_selected : cv::noArray());
             imHistogram.Load(histogram_rgb.data);
             ImGui::Image(imHistogram.id(), imHistogram.size(), ImVec2(0, 0), ImVec2(1, 1),
                          ImVec4(1.0f, 1.0f, 1.0f, 1.0f), ImVec4(1.0f, 1.0f, 1.0f, 0.5f));
@@ -430,7 +492,7 @@ public:
         }
 
         if (sel.mode == SuperpixelSelection::Mode::Contour && ImGui::TreeNode("Moments")) {
-            superpixel_moments = cv::moments(superpixel_sel_contour[0], true);
+            superpixel_moments = cv::moments(sel.superpixel_sel_contour[0], true);
             // spatial moments
             //   m00, m10, m01, m20, m11, m02, m30, m21, m12, m03;
             // central moments
@@ -455,12 +517,60 @@ public:
             ImGui::TreePop();
         }
 
-        if (dcnn_enable && ImGui::TreeNode("Superpixel DCNN Features")) {
+        if (analyzer_config.dcnn_enable && ImGui::TreeNode("Superpixel DCNN Features")) {
             dcnn.Compute(frame_dcnn, superpixel_labels);
             superpixel_feature_buffer.resize(dcnn.GetFeatureDim());
             dcnn.GetFeature(superpixel_id, superpixel_feature_buffer.data());
             ImGui::PlotLines("Feature", superpixel_feature_buffer.data(), dcnn.GetFeatureDim(), 0, "", -1.0f, 1.0f,
                              ImVec2(320, 200));
+            ImGui::TreePop();
+        }
+
+        if (analyzer_config.label_enable && ImGui::TreeNode("xView Metadata")) {
+            std::vector<std::vector<cv::Point>> sel_polygon;
+            switch (sel.mode) {
+                case SuperpixelSelection::Mode::None:
+                    break;
+
+                case SuperpixelSelection::Mode::Spotlight:
+                    cv::findContours(sel.superpixel_selected, sel_polygon, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
+                    break;
+
+                case SuperpixelSelection::Mode::Contour:
+                    sel_polygon = sel.superpixel_sel_contour;
+                    break;
+            }
+            if (sel && conn) {
+                cv::Moments spm = cv::moments(sel_polygon[0], true);
+                const auto area = static_cast<float>(spm.m00);
+                if (area > 0) {
+                    // const auto cxf32 = static_cast<float>(spm.m10/area+roi.x), cyf32 = static_cast<float>(spm.m01/area+roi.y);
+                    const cv::Rect roi = chips.GetROI(d_chip_id);
+                    const int cx = pointer_x+roi.x, cy = pointer_y+roi.y;
+//                    const int cx = static_cast<int>(spm.m10)+roi.x, cy = static_cast<int>(spm.m01)+roi.y;
+                    std::string fname(glob_dataset[d_image_id.val]);
+                    fs::path dataset(analyzer_config.dataset);
+#if __has_include(<filesystem>)
+                    std::string image = fs::path(fname).lexically_relative(dataset).string();
+#else
+                    // cuz path lib in C++ is obnoxious af.
+                    std::string image = fname;
+                    {
+                        std::string _dataset = dataset.string() + "/";
+                        if(fname.find(_dataset) == 0)
+                            image.erase(0, _dataset.length());
+                    }
+#endif
+                    pqxx::work w_bbox(*conn);
+                    pqxx::result r = w_bbox.exec_prepared("sql_match_bbox2", image, cx, cy);
+                    w_bbox.commit();
+                    if (!r.empty()) {
+                        for (auto const &row: r) {
+                            ImGui::Text("Label: %s", row["label_name"].c_str());
+                        }
+                    }
+                }
+            }
             ImGui::TreePop();
         }
 
@@ -470,8 +580,10 @@ public:
 
 protected:
     ImGuiIO &io;
-    int width, height, channels;
-    os_misc::Glob glob_dataset;
+    const int width, height;
+    int channels;
+    const os_misc::Glob glob_dataset;
+    const DatasetAnalyserConfig analyzer_config;
     TexImage imSuperpixels;
     TexImage imHistogram;
 #ifdef HAS_LIBGSLIC
@@ -486,22 +598,23 @@ protected:
     char _title[64];
     int pointer_x = 0, pointer_y = 0;
     LazyLoader<int> d_image_id;
-    float superpixel_size;
-    float chip_overlap;
     unsigned int superpixel_id = 0;
-    SuperpixelSelection sel = {SuperpixelSelection::Mode::Contour};
+    SuperpixelSelection sel;
     bool use_magnifier = false;
     bool normalize_component = true;
     int d_chip_id = 0;
     spt::dnn::Chipping chips;
-    const bool dcnn_enable;
 
     cv::Mat frame_raw, frame, frame_rgb, frame_dcnn;
-    cv::Mat superpixel_contour, superpixel_labels, superpixel_selected;
-    std::vector<std::vector<cv::Point>> superpixel_sel_contour;
+    cv::Mat superpixel_labels;
+//    cv::Mat superpixel_contour, superpixel_labels, superpixel_selected;
+//    std::vector<std::vector<cv::Point>> superpixel_sel_contour;
     cv::Moments superpixel_moments;
     cv::Mat histogram_rgb;
     std::vector<float> superpixel_feature_buffer;
+
+    pqxx::connection *conn = nullptr;
+    int frame_id;
 };
 
 class PipelineSettingsWindow: public IStaticWindow {
@@ -542,7 +655,7 @@ public:
 
         if (ImGui::Button("Initialize")) {
             if (d_camera_current->Acquire()) {
-                auto w = std::make_unique<SuperpixelAnalyzerWindow>(WIDTH, HEIGHT, d_camera_current);
+                auto w = std::make_unique<SuperpixelAnalyzerLiveWindow>(WIDTH, HEIGHT, d_camera_current);
                 if (w->Show() != nullptr)
                     windows.push_back(std::move(w));
             }
@@ -560,7 +673,7 @@ public:
     bool Draw() override {
         ImGui::Begin("Dataset");
         static size_t d_dataset = 0;
-        if (ImGui::TreeNode("Dataset") && datasets.size() > 0) {
+        if (ImGui::TreeNodeEx("Dataset", ImGuiTreeNodeFlags_DefaultOpen) && datasets.size() > 0) {
             if (ImGui::BeginCombo("Source", std::get<0>(datasets[d_dataset]).c_str())) {
                 for (size_t i = 0; i < datasets.size(); ++i) {
                     bool is_selected = i == d_dataset;
@@ -575,40 +688,37 @@ public:
         }
 
 #ifdef HAS_LIBGSLIC // with gSLIC, it is not efficient to use different superpixel sizes over time
-        if (ImGui::TreeNode("Superpixels")) {
-            ImGui::SliderFloat("Superpixel Size", &d_superpixel_size, 5.6f, 24.0f);
+        if (ImGui::TreeNodeEx("Superpixels", ImGuiTreeNodeFlags_DefaultOpen)) {
+            ImGui::SliderFloat("Superpixel Size", &d_config.superpixel_size, 5.6f, 24.0f);
             ImGui::TreePop();
         }
 #endif
 
-        if (ImGui::TreeNode("DCNN")) {
-            ImGui::Checkbox("Enable", &d_dcnn_enable);
-            if (d_dcnn_enable) d_chip_size = 256;
+        if (ImGui::TreeNodeEx("DCNN", ImGuiTreeNodeFlags_DefaultOpen)) {
+            ImGui::Checkbox("Enable", &d_config.dcnn_enable);
+            if (d_config.dcnn_enable) d_config.chip_size = 256;
             ImGui::TreePop();
         }
 
-        if (!d_dcnn_enable && ImGui::TreeNode("Chipping")) {
-            ImGui::SliderInt("sqrt(Chip Size)", &d_chip_size, 100, 1000);
-            ImGui::SliderFloat("Overlap percentage", &d_chip_overlap, 0, 0.99);
+        if (!d_config.dcnn_enable && ImGui::TreeNodeEx("Chipping", ImGuiTreeNodeFlags_DefaultOpen)) {
+            ImGui::SliderInt("sqrt(Chip Size)", &d_config.chip_size, 100, 1000);
+            ImGui::SliderFloat("Overlap percentage", &d_config.chip_overlap, 0, 0.99);
             ImGui::TreePop();
         }
 
-        if (ImGui::TreeNode("Labels")) {
-            ImGui::Checkbox("Enable", &d_label_enable);
+        if (ImGui::TreeNodeEx("Metadata", ImGuiTreeNodeFlags_DefaultOpen)) {
+            ImGui::Text("Requires PostgreSQL ^11.5 server and table `xview`.");
+            ImGui::InputText("Connection", d_config.pqxx_conn, IM_ARRAYSIZE(d_config.pqxx_conn));
+            ImGui::Checkbox("Enable", &d_config.label_enable);
             ImGui::TreePop();
         }
 
         ImGui::Separator();
 
         if (ImGui::Button("Initialize")) {
-            const auto frame_width = d_chip_size;
-            const auto frame_height = d_chip_size;
-            auto w = std::make_unique<SuperpixelAnalyzerWindow2>(
-                    frame_width, frame_height,
-                    std::get<1>(datasets[d_dataset]),
-                    d_superpixel_size,
-                    d_chip_overlap,
-                    d_dcnn_enable);
+            const auto frame_width = d_config.chip_size;
+            const auto frame_height = d_config.chip_size;
+            auto w = std::make_unique<SuperpixelAnalyzerWindow>(std::get<0>(datasets[d_dataset]), frame_width, frame_height, std::get<1>(datasets[d_dataset]), d_config);
             if (w->Show() != nullptr)
                 windows.push_back(std::move(w));
         }
@@ -617,11 +727,7 @@ public:
     }
 
 protected:
-    float d_superpixel_size = 8.0f;
-    bool d_dcnn_enable = false;
-    int d_chip_size = 500;
-    float d_chip_overlap = 0.3;
-    bool d_label_enable = false;
+    DatasetAnalyserConfig d_config;
 };
 
 #if 0
@@ -878,12 +984,10 @@ class CustomRenderTestWindow: public TestWindow {
 };
 #endif
 
-const fs::path pth_xView("/tank/datasets/research/xView");
-
 int main(int, char**) {
     App app = App::Initialize();
     if (!app.ok) return 1;
-    ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+    const ImVec4 clear_color = ImVec4(0.77f, 0.77f, 0.77f, 1.00f);
     cameras = cv_misc::camera_enumerate2();
     datasets.emplace_back("xView", (pth_xView / "train_images/*.tif").string());
     windows.push_back(std::make_unique<PipelineSettingsWindow>());

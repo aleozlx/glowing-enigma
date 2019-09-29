@@ -15,11 +15,11 @@ namespace os_misc {
         globfree(&glob_result);
     }
 
-    const char *Glob::operator[](int i) {
+    const char *Glob::operator[](int i) const {
         return glob_result.gl_pathv[i];
     }
 
-    size_t Glob::size() {
+    size_t Glob::size() const {
         return _error ? 0 : glob_result.gl_pathc;
     }
 

@@ -15,9 +15,9 @@ namespace os_misc {
 
         ~Glob();
 
-        size_t size();
+        size_t size() const;
 
-        const char *operator[](int i);
+        const char *operator[](int i) const;
     };
 }
 
