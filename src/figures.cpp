@@ -61,8 +61,8 @@ void process_tif(const fs::path &dataset, const std::string &fname, const fs::pa
     try {
         pqxx::connection conn("dbname=xview user=postgres");
         fs::path pthFname(fname);
-#if 1
         conn.prepare("sql_find_frame_id", "select id from frame where image = $1");
+#if 0
         conn.prepare("sql_match_bbox2_ct", // (image, cx, cy)
                      "select count(*) \
 from frame join bbox on frame.id = bbox.frame_id join class_label cls on bbox.xview_type_id = cls.id \
