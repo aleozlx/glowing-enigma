@@ -130,6 +130,15 @@ where frame.image = $1 AND cls.label_name in ('Tower','Fixed-wing Aircraft', 'Ya
             unsigned int nsp = superpixel->GetNumSuperpixels();
             superpixel->GetLabels(superpixel_labels);
             superpixel->GetContour(superpixel_contour);
+
+            char cstr_fname_out[200];
+
+            // Save input image
+            if (sp_size == 8) { // TODO change to tid
+                std::snprintf(cstr_fname_out, 200, "f%dc%di.png", frame_id, chip_id);
+                cv::imwrite((output / cstr_fname_out).string(), frame);
+            }
+
             // Draw superpixels
             frame_rgb.setTo(color_superpixel, superpixel_contour);
 
@@ -147,7 +156,7 @@ where frame.image = $1 AND cls.label_name in ('Tower','Fixed-wing Aircraft', 'Ya
             }
 
             cv::cvtColor(frame_rgb, im_save, cv::COLOR_RGB2BGR);
-            char cstr_fname_out[200];
+
             std::snprintf(cstr_fname_out, 200, "f%dc%ds%d.png", frame_id, chip_id, (int)sp_size);
             std::string fname_out = output / std::string(cstr_fname_out);
             cv::imwrite(fname_out, im_save);
